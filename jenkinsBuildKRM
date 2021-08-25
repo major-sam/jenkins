@@ -130,8 +130,9 @@ stages {
 			  stage ("Build artifact ${BUILDNAME}") {
 				dir (CLONE_FOLDER) {
 					expr = SLN_PATH +  MSBUILD_PARAMS + PUBLISH_PARAMS 
-					powershell ( encoding:"UTF8", returnStdout: 'true', script:'write-host \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}')
-					powershell ( encoding:"UTF8", returnStdout: 'true', script:'& \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}')
+					echo expr
+					powershell ( encoding:"UTF8", returnStdout: 'true', script:"write-host \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}")
+					powershell ( encoding:"UTF8", returnStdout: 'true', script:"& \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}")
 				}
 			  }
 			  stage ("Pack and push ${BUILDNAME} artifact to nuget") {

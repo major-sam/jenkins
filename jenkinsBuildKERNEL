@@ -205,7 +205,8 @@ post {
                 deleteDir()
             }
         if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
-          error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
+          //error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
+		   catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE')
         }  
 		chuckNorris ()
 		cleanWs (notFailBuild: true)
