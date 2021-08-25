@@ -5,7 +5,7 @@ GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/server.git"
 BRANCH_LIST_URL = "https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/server/branches?limit=1000&type=BRANCH"
 NUGET_REPO = "http://dev-comp49/"
 BRANCH = ""
-DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main', 'developv2']
+DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main', 'developV2']
 commit = env.GIT_COMMIT
 CLONE_FOLDER = "jb"
 SLN_FILE = "Server.sln"
