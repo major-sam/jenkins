@@ -68,6 +68,9 @@ def generateStageFromPsScript(job) {
                 powershell ( encoding:"UTF8", script:"nuget pack")
 				if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
 					powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+				}else{
+					catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+						error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
 				}
 				url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
 				currentBuild.description = currentBuild.description + "<br>${job}"+'<br> <a href="' + url + '">link</a>  to artifact in nuget gallery'
@@ -201,7 +204,8 @@ post {
                 deleteDir()
             }
         if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
-          error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
+          catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+			error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  } 
         }  
 		chuckNorris ()
 		cleanWs (notFailBuild: true)

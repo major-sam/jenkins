@@ -17,7 +17,7 @@ def generateStageFromPsScript(job) {
 pipeline {
     parameters {
         booleanParam(name: 'Rebuild', defaultValue: false)
-        choice(name:"Choose_VM", choices:["vm-n2-ws1", "vm-n2-ws2"])
+        choice(name:"Choose_VM", choices: ["vm-n2-ws1", "vm-n2-ws2"])
         string(defaultValue: '1.0.5448.1', name: 'Kernel_KernelWeb', trim: true)
         string(defaultValue: 'net471', name: 'KernelFramework', trim: true)
         string(defaultValue: '1.0.0.2037-2021-07-22.com.release.895d7c72', name: 'BaltbetRU', trim: true)

@@ -41,7 +41,7 @@ def generateStageFromPsScript(job) {
             commitMsg = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%B | ? {\$_.trim() -ne ''}")).trim()
             commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
             BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
-        	nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-")
+        	nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-").replace("_","-")
             dir (job) { dir (PUBLISH_NAME){
                 writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
                 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
@@ -64,9 +64,12 @@ def generateStageFromPsScript(job) {
                 powershell ( encoding:"UTF8", script:"nuget pack")
 				if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
 					powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
-				}
-				url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
-				currentBuild.description = currentBuild.description + "<br>${job}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
+					url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
+					currentBuild.description = currentBuild.description + "<br>${job}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
+				}else{
+					catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+						error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
+				}		
         	}}
         }
       }
@@ -123,7 +126,8 @@ stages {
 		if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
 			echo "valid branch naming ${BRANCH} "
 		}else{			
-			echo "invalid branch naming ${BRANCH} BUILD WILL BE FAILED IN POST!"
+			catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+			 error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
 		}
 	  }
     }
@@ -205,8 +209,9 @@ post {
                 deleteDir()
             }
         if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
-          //error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
-		   catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE')
+          //  
+		   catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+			error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
         }  
 		chuckNorris ()
 		cleanWs (notFailBuild: true)

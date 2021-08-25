@@ -17,7 +17,7 @@ DEFAULT_BRANCH = ""
 PUBLISH_NAME = "jenkinsBuild" + env.BUILD_NUMBER 
 PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_NAME}\" "
 // DefineConstants %IGNORE_AUTH% true by default. put it to pipline params
-MSBUILD_PARAMS = ' /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug="full" /p:DefineConstants="krm;publish;;"'
+MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug=\"full\" \"/p:DefineConstants=`\"krm;publish;;`\"\""
 NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
         -Source "https://api.nuget.org/v3/index.json" `
     	-Source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
@@ -108,8 +108,6 @@ stages {
     steps {
       script {
         dir (CLONE_FOLDER) {
-		  // command for output debug command line example	
-          //powershell ( encoding:"UTF8", script:"write-host nuget.exe ${NUGET_PARAMS}")
           powershell ( encoding:"UTF8", script:"nuget.exe ${NUGET_PARAMS}")
         }
       }
@@ -127,24 +125,20 @@ stages {
   stage('Dynamic Stages') {
 		steps {
 			script {
+			 dir (CLONE_FOLDER) {
 			  stage ("Build artifact ${BUILDNAME}") {
-				dir (CLONE_FOLDER) {
-					expr = SLN_PATH +  MSBUILD_PARAMS + PUBLISH_PARAMS 
-					echo expr
-					powershell ( encoding:"UTF8", returnStdout: 'true', script:'write-host ${env.VS_MSBUILD_PATH} ${expr}')
-					powershell ( encoding:"UTF8", returnStdout: 'true', script:'& \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}')
+				dir (CSPROJ_FOLDER) {
+					expr = /& ${env.VS_MSBUILD_PATH} ${SLN_PATH} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+					powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
 				}
 			  }
 			  stage ("Pack and push ${BUILDNAME} artifact to nuget") {
-				dir (CLONE_FOLDER) {
-				
-					//TODO IN MULTIBRANCH NEEDS TO REPLACE
+				dir (CSPROJ_FOLDER) {				
 					commitMsg = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%B | ? {\$_.trim() -ne ''}")).trim()
-					//TODO IN MULTIBRANCH NEEDS TO REPLACE
 					commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
 					BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
 					nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-")
-					dir (CSPROJ_FOLDER) { dir (PUBLISH_NAME){
+					dir (PUBLISH_NAME){
 						writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
@@ -166,9 +160,12 @@ stages {
 						powershell ( encoding:"UTF8", script:"nuget pack")
                 		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
                 			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
-                		}
-						url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
-						currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
+							url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
+							currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
+                		}else{
+							catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
+						}
 					}}
 				}
 			  }
@@ -183,7 +180,8 @@ post {
                 deleteDir()
             }
         if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
-          error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
+          catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
         }  
 		chuckNorris ()
 		//cleanWs (notFailBuild: true)
