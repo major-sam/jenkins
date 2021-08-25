@@ -6,13 +6,11 @@ def parallelStagesMap = serviceScripts.collectEntries {
 def generateStageFromPsScript(job) {
     return {
         stage("Renew params on: ${job}") {
-                echo "This is ${job}. ON ${env.WORKSPACE}"
+                echo "This is ${job} job. Script ${env.WORKSPACE}\\${job}.ps1 "
                 def job_folder = "${env.JOB_NAME}".split('/')[1]
-                echo "Copy-Item -force \"\\\\server\\tcbuild\$\\Testers\\_VM Update Instructions\\jenkins\\${job_folder}\\${job}.ps1\" "
-                powershell (encoding: 'UTF8', returnStatus:true, returnStdout:true, script:"Copy-Item -Recurse '\\\\server\\tcbuild\$\\Testers\\_VM Update Instructions\\jenkins\\${job_folder}\\${job}.ps1' ")
-                def ps_param = params."${job}"
-                echo  ".\\${job}.ps1 ${ps_param}"
-                powershell (encoding: 'UTF8', script: ".\\${job}.ps1 ${ps_param}")
+                def stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"dir")
+				def ps_param = params."${job}"
+                stdout = powershell (encoding: 'UTF8', returnStdout:true, script: ".\\unicom_scripts\\${job}.ps1")
             }
     }
 }
@@ -31,7 +29,7 @@ pipeline {
         string(defaultValue: 'BaltBet.KernelDataService-14', name: 'BaltBet.KernelDataService', trim: true)
         string(defaultValue: 'BaltBet.Services.BetInfoService-3', name: 'BaltBet.Services.BetInfoService', trim: true)
         string(defaultValue: 'BaltBet.Services.InfoService-13', name: 'BaltBet.Services.InfoService', trim: true)
-        string(defaultValue: '2021-07-09.cps.UNICOM-149.1.0.0.105-ea29db8f', name: 'UniCom_Site', trim: true)
+        string(defaultValue: '1.0.0.104-develop.cps-a5b114bb', name: 'UniCom_Site', trim: true)
         string(defaultValue: '1.0.0.31', name: 'UniCom_Administration', trim: true)
         string(defaultValue: '1.0.0.45', name: 'UniCom_Registration', trim: true)
         string(defaultValue: 'webapi.Auth_2021.07.05-UNICOM.1624.be383b41', name: 'UniCom_Auth', trim: true)
@@ -58,8 +56,10 @@ pipeline {
         stage('Deploy apps'){
             steps {
                 script{ 
+				    echo "this is Build on ${Choose_VM} vm"
+				
                     echo "Stopping services"
-                    def services = ["W3SVC", "Kernel", "KernelWeb", "IdentificationDocumentService", "KernelZone"]
+                    def services = [ "Kernel", "KernelWeb", "IdentificationDocumentService", "KernelZone"]
                     for (service in services){
                         powershell (script:"Stop-Service -force -name ${service}  -ErrorAction Ignore")
                     }
@@ -71,38 +71,47 @@ pipeline {
                     echo "Removing root apps"
                     def root_apps = ["Kernel", "KernelWeb", "IdentificationService", "BaltBet.*", "BestBetsInitialize", "Release", "Site"]
                     for (app in root_apps){
-                        powershell (encoding: 'UTF8', returnStatus:true, script:"Remove-Item -Recurse c:\\${app} -ErrorAction Ignore")
+                        stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Remove-Item -Recurse -verbose c:\\${app} -ErrorAction Ignore")
+
                     }
                     echo "Removing IIS apps"
                     def inetpub_apps = ["baltbetcom","baltbetru","UniCom","UniCom_Administration","UniCom_Auth","UniCom_Registration", "Release", "Site"]
                     for (app in inetpub_apps){
-                        powershell (encoding: 'UTF8', script:"Remove-Item -Recurse c:\\inetpub\\${app} -ErrorAction Ignore")
-                    }
+                        stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Remove-Item -verbose -force -Recurse c:\\inetpub\\${app} -Exclude Web.config -ErrorAction Ignore")
+						
+					}
                     echo "Deploy artifact"
                     def repos = ["UniCom\\Administration","ServerDeploy","ServerDeploy\\IdentificationService","UniCom\\Site","UniCom\\Registration","KernelZone\\BaltBet.Accounting","KernelZone\\BaltBet.BetProcessing","KernelZone\\BaltBet.DataProcessing",
                         "KernelZone\\BaltBet.Kernel.CommandProcessing","KernelZone\\BaltBet.KernelDataService","KernelZone\\BaltBet.Services.BetInfoService","KernelZone\\BaltBet.Services.InfoService","WebSiteDev"]
                     def root_repo = "\\\\server\\tcbuild\$"
                     for (repo in repos){
-                        echo "deploing ${repo}"
                         switch(repo) {
                             case "ServerDeploy":
                                 echo "deploy kernel and web ${params.Kernel_KernelWeb}"
-                                powershell (encoding: 'UTF8', script:"Copy-Item -Recurse ${root_repo}\\${repo}\\${params.Kernel_KernelWeb}\\Kernel\\${params.KernelFramework} c:\\Kernel")
-                                powershell (encoding: 'UTF8', script:"Copy-Item -Recurse ${root_repo}\\${repo}\\${params.Kernel_KernelWeb}\\KernelWeb\\${params.KernelFramework} c:\\KernelWeb")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Copy-Item -verbose -Recurse -Force ${root_repo}\\${repo}\\${params.Kernel_KernelWeb}\\Kernel\\${params.KernelFramework}\\* c:\\Kernel")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Copy-Item -verbose -Recurse -Force ${root_repo}\\${repo}\\${params.Kernel_KernelWeb}\\KernelWeb\\${params.KernelFramework}\\* c:\\KernelWeb")
                                 break
                             case "WebSiteDev":
                                 echo "deploy BaltbetCom ver ${params.BaltbetCom}"
-                                powershell (encoding: 'UTF8', script:"Expand-Archive ${root_repo}\\${repo}\\${params.BaltbetCom}.zip c:\\inetpub\\baltbetcom")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Expand-Archive -Force ${root_repo}\\${repo}\\${params.BaltbetCom}.zip c:\\inetpub\\baltbetcom  ")
 
                                 break
                             case "ServerDeploy\\IdentificationService":
                                 echo "deploy IdentificationService ver ${params.IdentificationDocumentService}"
-                                powershell (encoding: 'UTF8', script:"Copy-Item -Recurse ${root_repo}\\${repo}\\${params.IdentificationDocumentService} c:\\IdentificationService")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Copy-Item -verbose -Recurse -Force  ${root_repo}\\${repo}\\${params.IdentificationDocumentService} c:\\IdentificationService")
                                 break
                             case "UniCom\\Site":
                                 echo "deploy UniCom Site ver ${params.UniCom_Site}"
-                                powershell (encoding: 'UTF8', script:"Expand-Archive ${root_repo}\\${repo}\\${params.UniCom_Site}.zip c:\\inetpub")
-                                powershell (script:    "Rename-Item c:\\inetpub\\Site c:\\inetpub\\UniCom")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Expand-Archive -Force ${root_repo}\\${repo}\\${params.UniCom_Site}.zip c:\\inetpub  ")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:  '''
+									$path = "c:\\inetpub\\UniCom"
+									If(!(test-path $path))
+										{
+											  New-Item -ItemType Directory -Force -Path $path
+									}
+									Move-Item c:\\inetpub\\Site\\* c:\\inetpub\\UniCom
+									Remove-Item -verbose  -Recurse -Force c:\\inetpub\\Site
+								''')
                                 break
                             case ["KernelZone\\BaltBet.Accounting","KernelZone\\BaltBet.BetProcessing","KernelZone\\BaltBet.DataProcessing","KernelZone\\BaltBet.Kernel.CommandProcessing",
                                 "KernelZone\\BaltBet.KernelDataService","KernelZone\\BaltBet.Services.BetInfoService","KernelZone\\BaltBet.Services.InfoService"]:
@@ -110,19 +119,19 @@ pipeline {
                                 def folder = repo.split("\\\\")[1]
                                 def arch = params."${folder}"
                                 echo "Repo is ${repo}, deploy to root folder ${folder}. Version is ${arch}"
-                                powershell (encoding: 'UTF8', script:"Expand-Archive -force ${root_repo}\\$repo\\${arch}.zip c:\\")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Expand-Archive -force ${root_repo}\\$repo\\${arch}.zip c:\\ ")
                                 echo "Rename-Item c:\\Release c:\\${folder}"
-                                powershell (script: "Rename-Item c:\\Release c:\\${folder}")
+                                stdout = powershell (script: "Rename-Item c:\\Release c:\\${folder}")
                                 break
                             case ["UniCom\\Administration","UniCom\\Registration"]:
                                 //IIS apps
                                 def inetpub_folder = repo.replace("\\","_")
                                 def arch = params."${inetpub_folder}"
                                 echo "Repo is ${repo}, deploy to inetpub ${inetpub_folder} Version is ${arch}"
-                                powershell (encoding: 'UTF8', script:"Expand-Archive ${root_repo}\\$repo\\${arch}.zip c:\\inetpub\\${inetpub_folder}")
+                                stdout = powershell (encoding: 'UTF8', returnStdout:true, script:"Expand-Archive -Force ${root_repo}\\$repo\\${arch}.zip c:\\inetpub\\${inetpub_folder} ")
                                 break
                             default:
-                            error "wtf is ${repo}"
+								error "wtf is ${repo}"
                             break
                         }
                     }   
@@ -134,9 +143,22 @@ pipeline {
             steps {
                 script {
                     parallel parallelStagesMap
-                }    
-                chuckNorris()
+                }
             }
         }
-    }       
+    }
+	post { 
+        success { 
+            echo 'Start services'
+        }
+		always {
+		    
+			chuckNorris()
+            cleanWs(cleanWhenNotBuilt: false,
+                    deleteDirs: true,
+                    notFailBuild: true,
+                    patterns: [[pattern: '.gitignore', type: 'INCLUDE'],
+                               [pattern: '.propsfile', type: 'EXCLUDE']])
+        }	
+	}	
 }

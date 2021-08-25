@@ -1,0 +1,226 @@
+PARRALEL_BUILD_SERVICES = ['Kernel','KernelWeb']
+BUILDNAME = "Kernel"
+GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/server.git"
+GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/server.git"
+BRANCH_LIST_URL = "https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/server/branches?limit=1000&type=BRANCH"
+NUGET_REPO = "http://dev-comp49/"
+BRANCH = ""
+DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main', 'developv2']
+commit = env.GIT_COMMIT
+CLONE_FOLDER = "jb"
+SLN_FILE = "Server.sln"
+SLN_FOLDER = ".\\"
+SLN_PATH = SLN_FOLDER  + SLN_FILE
+DEFAULT_BRANCH = "master"
+PUBLISH_NAME =  "jenkinsBuild" + env.BUILD_NUMBER
+MSBUILD_PARAMS = ' /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug="full" /p:DefineConstants="publish" /p:PublishProfile="Production" '
+PUBLISH_PARAMS = "/p:publishUrl=\".\\${PUBLISH_NAME}\" " 
+OUTPUT_PARAMS = "/p:OutputPath=\"${PUBLISH_NAME}\" "
+NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
+        -Source "https://api.nuget.org/v3/index.json" `
+    	-Source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
+    	-Source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release" `
+    	-Source "\\\\server\\tcbuild\$\\!Nuget-Packages-Archive" `
+    	-Source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release"	"""
+DOTNET_PARAMS = """ restore $SLN_PATH --source "http://nuget.gkbaltbet.local/nuget" `
+        --source "https://api.nuget.org/v3/index.json" `
+    	--source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
+    	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release" `
+    	--source "\\\\server\\tcbuild\$\\!Nuget-Packages-Archive" `
+    	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release"	"""
+
+
+def parallelStagesMap = PARRALEL_BUILD_SERVICES.collectEntries {
+    ["${it}" : generateStageFromPsScript(it)]
+}
+def generateStageFromPsScript(job) {
+  return {
+    stage (job){
+      stage ("Pack and push ${job} artifact to nuget") {
+        script {
+        	//TODO IN MULTIBRANCH NEEDS TO REPLACE
+            commitMsg = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%B | ? {\$_.trim() -ne ''}")).trim()
+            commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
+            BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
+        	nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-")
+            dir (job) { dir (PUBLISH_NAME){
+                writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
+                <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+                  <metadata>
+                    <id>${job}</id>
+                    <version>1.0.${nugetVersion}</version>
+                    <description>
+                	  ${commitMsg}. 
+                      Git hash: ${commitHash}
+                	</description>
+                    <authors>${BUILD_TRIGGER_BY} by Jenkins</authors>
+                    <repository type="git" url="${GIT_URL}" branch="${BRANCH}" commit="${commitHash}" />
+                		<frameworkAssemblies>
+                      <frameworkAssembly assemblyName="System.Web" targetFramework="net40" />
+                      <frameworkAssembly assemblyName="System.Net" targetFramework="netcoreapp3.1" />
+                    </frameworkAssemblies>
+                	<tags>${BRANCH} ${commitHash}</tags>
+                  </metadata>
+                </package>""")
+                powershell ( encoding:"UTF8", script:"nuget pack")
+                powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+				url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
+				currentBuild.description = currentBuild.description + "<br>${job}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
+        	}}
+        }
+      }
+    }
+  }
+}
+
+
+
+pipeline {
+	agent { node { label 'build' }}
+stages {
+  stage ('Get Bitbucket branches') {
+    steps {
+	  // this step must be parametrized by tagged commit in hook
+      cleanWs ()
+      script {
+		currentBuild.description = " Test Bitbucket integration with Jenkins"
+			// add default user for BB and replace 118 creds
+        withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: '118', usernameVariable: 'username', passwordVariable: 'password']]) {
+          powershell ( encoding: 'UTF8', script:"""
+            \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
+            \$requestHeaders = @{
+              "content-length" = 0
+              "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
+            }
+            \$endpointUri = '$BRANCH_LIST_URL'
+            \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
+            \$json.values.displayId | Sort-Object | set-content -Encoding "utf8" branch.txt
+          """)
+          DEFAULT_BRANCH = powershell ( encoding: 'UTF8', returnStdout: 'true', script:"""
+            \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
+            \$requestHeaders = @{
+              "content-length" = 0
+              "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
+            }
+            \$endpointUri = '$BRANCH_LIST_URL'
+            \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
+            \$default = \$json.values | where { \$_.isDefault -eq "true" } 
+            \$default.displayId.trim()
+          """)
+        }
+      }
+    }
+  }
+   stage ('Set branch to build') {
+    steps {
+      script {
+        branchList = readFile ( file:"${env.workspace}/branch.txt", encoding: "UTF-8")
+        echo "please click on the link here to chose the branch to build"
+        BRANCH = input message: 'Please choose the branch to build ', ok: 'Build!',
+            parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
+        BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
+      }
+    }
+  } 
+  stage ("Checkout branch") {
+    steps {
+      echo "Тут нужно будет переделать в git clone --tag MY_TAG"
+      script {
+        echo "You choose ${BRANCH} branch, checkout"
+        BRANCH = BRANCH.trim().toString().replaceAll("\\s","")
+        DEFAULT_BRANCH =DEFAULT_BRANCH.trim().toString().replaceAll("\\s","")
+		withCredentials([gitUsernamePassword(credentialsId: '118')]) {
+			if (BRANCH.contains (DEFAULT_BRANCH)) {
+					powershell ( encoding:"UTF8", script: "git clone ${GIT_URL} ${CLONE_FOLDER}")
+				}
+			else {
+			  powershell ( encoding:"UTF8", script: "git clone --single-branch --branch ${BRANCH} ${GIT_URL} ${CLONE_FOLDER}")
+			}
+		}
+      }
+    }
+  }	
+  stage ("Nuget restore") {
+    steps {
+      script {
+        dir (CLONE_FOLDER) {
+		  // command for output debug command line example	
+          //powershell ( encoding:"UTF8", script:"write-host nuget.exe ${NUGET_PARAMS}")
+          powershell ( encoding:"UTF8", script:"nuget.exe ${NUGET_PARAMS}")
+        }
+      }
+    }
+  }
+  stage (".Net restore") {	
+    steps {
+      script {
+        dir (CLONE_FOLDER) {
+          powershell ( encoding:"UTF8", returnStdout: 'true', script:" & 'C:\\Program Files\\dotnet\\dotnet.exe' ${DOTNET_PARAMS}")
+        }
+      }
+    }
+  }
+  stage ("Build artifact Kernel") {
+   steps {dir (CLONE_FOLDER) {
+	script {
+		CSPROJ_FOLDER = ".\\Kernel"
+		CSPROJ_FILE = "Kernel.csproj"
+		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
+		expr = CSPROJ_PATH +  MSBUILD_PARAMS + PUBLISH_PARAMS + OUTPUT_PARAMS
+		powershell ( encoding:"UTF8", returnStdout: 'true', script:"& 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe' ${expr}")
+	}
+   }}
+  }
+  stage ("Build artifact KernelWeb") {
+   steps {dir (CLONE_FOLDER) {
+	script {
+		CSPROJ_FOLDER = ".\\KernelWeb"
+		CSPROJ_FILE = "KernelWeb.csproj"
+		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
+		expr = CSPROJ_PATH +  MSBUILD_PARAMS + PUBLISH_PARAMS + OUTPUT_PARAMS
+		powershell ( encoding:"UTF8", returnStdout: 'true', script:"& 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe' ${expr}")
+	}
+   }}
+  }
+  stage('Parralell publish'){
+    steps{  
+      script {
+        dir (CLONE_FOLDER) {
+            parallel parallelStagesMap
+        }    
+      }
+    }
+  }
+}
+post {
+  always {	
+      script{          
+		dir("${workspace}@tmp") {
+                deleteDir()
+            }
+        if (!((BRANCH ==~ /.*[A-Z]{2,}-\d+$/)||(BRANCH in DEFAULT_BRANCHES))){
+          error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
+        }  
+		chuckNorris ()
+		cleanWs (notFailBuild: true)
+      }	
+  }
+  success {
+	jiraComment issueKey: 'NWP-145' ,body: """(/)
+h1. {color:#00875A}BUILD ${BUILDNAME} SUCCSESFUL{color}
+h2. Jenkins build ${env.BUILD_NUMBER}
+[link |${env.BUILD_url}]
+----
+h2. Nuget artifact
+[link |${NUGET_REPO}packages/${BUILDNAME}/1.0.${nugetVersion}]
+"""  
+  }
+  failure {
+	jiraComment issueKey: 'NWP-145' ,body: """(x)
+h1. {color:#FF0000}BUILD ${BUILDNAME} FAILURE{color}
+h2. Jenkins build ${env.BUILD_NUMBER}
+[link |${env.BUILD_url}]
+----
+"""    
+    }
+}}
