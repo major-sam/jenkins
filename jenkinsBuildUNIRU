@@ -123,6 +123,12 @@ stages {
         BRANCH = input message: 'Please choose the branch to build ', ok: 'Build!',
             parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
         BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
+        echo BRANCH
+		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
+			echo "valid branch naming ${BRANCH} "
+		}else{			
+			echo "invalid branch naming ${BRANCH} BUILD WILL BE FAILED IN POST!"
+		}
       }
     }
   } 
