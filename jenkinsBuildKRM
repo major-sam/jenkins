@@ -78,7 +78,7 @@ stages {
             parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
         BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
         echo BRANCH
-		if((BRANCH ==~ /.*[A-Z]{2,}-\d+$/)||(BRANCH in DEFAULT_BRANCHES)){
+		if((BRANCH ==~ env.BRANCH_REGEX ||(BRANCH in DEFAULT_BRANCHES)){
 			echo "valid branch naming ${BRANCH} "
 		}else{			
 			echo "invalid branch naming ${BRANCH} BUILD WILL BE FAILED IN POST!"
@@ -163,7 +163,7 @@ stages {
   </metadata>
 </package>""")
 						powershell ( encoding:"UTF8", script:"nuget pack")
-                		if((BRANCH ==~ /.*[A-Z]{2,}-\d+$/)||(BRANCH in DEFAULT_BRANCHES)){
+                		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
                 			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
                 		}
 						url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
@@ -181,7 +181,7 @@ post {
 		dir("${workspace}@tmp") {
                 deleteDir()
             }
-        if (!((BRANCH ==~ /.*[A-Z]{2,}-\d+$/)||(BRANCH in DEFAULT_BRANCHES))){
+        if (!((BRANCH ==~ env.BRANCH_REGEX ||(BRANCH in DEFAULT_BRANCHES))){
           error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
         }  
 		chuckNorris ()

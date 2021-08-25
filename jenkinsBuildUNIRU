@@ -6,7 +6,6 @@ NUGET_REPO = "http://dev-comp49/"
 BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/ClientWorkPlace/branches?limit=1000&type=BRANCH"
 BRANCH = "branch"
 DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
-commit = env.GIT_COMMIT
 SLN_FILE = "ClientWorkspace.sln"
 SLN_FOLDER = ".\\"
 SLN_PATH = SLN_FOLDER  + SLN_FILE
@@ -67,7 +66,9 @@ def generateStageFromPsScript(job) {
                   </metadata>
                 </package>""")
                 powershell ( encoding:"UTF8", script:"nuget pack")
-                powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+				if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
+					powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+				}
 				url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
 				currentBuild.description = currentBuild.description + "<br>${job}"+'<br> <a href="' + url + '">link</a>  to artifact in nuget gallery'
         	}}
@@ -193,7 +194,7 @@ post {
 		dir("${workspace}@tmp") {
                 deleteDir()
             }
-        if (!((BRANCH ==~ /.*[A-Z]{2,}-\d+$/)||(BRANCH in DEFAULT_BRANCHES))){
+        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
           error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
         }  
 		chuckNorris ()

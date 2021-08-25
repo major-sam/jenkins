@@ -6,7 +6,6 @@ NUGET_REPO = "https://dev-comp49/"
 BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/unicom/branches?limit=1000&type=BRANCH"
 BRANCH = "branch"
 DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
-commit = env.GIT_COMMIT
 CLONE_FOLDER = "jb"
 CSPROJ_FILE = "Web.ClientWorkspace.csproj"
 CSPROJ_FOLDER = "Web.ClientWorkspace"
@@ -148,8 +147,10 @@ stages {
 	<tags>${BRANCH} ${commitHash}</tags>
   </metadata>
 </package>""")
-                powershell ( encoding:"UTF8", script:"nuget pack")				
-                powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+                powershell ( encoding:"UTF8", script:"nuget pack")
+				if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
+					powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+				}
 				url = '${NUGET_REPO}packages/' + buildName + '/' +  "1.0.${nugetVersion}"
 				currentBuild.description = currentBuild.description + "<br>${buildName}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
 				}}
@@ -164,7 +165,7 @@ post {
 		dir("${workspace}@tmp") {
                 deleteDir()
             }
-        if (!((BRANCH ==~ /.*[A-Z]{2,}-\d+$/)||(BRANCH in DEFAULT_BRANCHES))){
+        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
           error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")    
         }  
 		chuckNorris ()
