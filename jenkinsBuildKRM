@@ -41,7 +41,7 @@ stages {
 	  // this step must be parametrized by tagged commit in hook
       cleanWs ()
       script {
-		currentBuild.description = "Bitbucket integration with Jenkins<br>${BUILDNAME} build"
+		currentBuild.description = "Bitbucket integration with Jenkins <b>${BUILDNAME}</b> build"
 			// add default user for BB and replace 118 creds
         withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: '118', usernameVariable: 'username', passwordVariable: 'password']]) {
           powershell ( encoding: 'UTF8', script:"""
@@ -161,7 +161,7 @@ stages {
                 		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
                 			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
 							url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
-							currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+'<br> <a href="' +url + '">link</a>  to artifact in nuget gallery'
+							currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+' <a href="' +url + '">link</a>  to artifact in nuget gallery'
                 		}else{
 							catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
 								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
