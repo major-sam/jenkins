@@ -17,7 +17,7 @@ DEFAULT_BRANCH = ""
 PUBLISH_NAME = "jenkinsBuild" + env.BUILD_NUMBER 
 PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_NAME}\" "
 // DefineConstants %IGNORE_AUTH% true by default. put it to pipline params
-MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug=\"full\" \"/p:DefineConstants=`\"krm;publish;;`\"\""
+MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug=\"full\"  /p:PublishProfile=\"Production\" \"/p:DefineConstants=`\"krm;publish;;`\"\""
 NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
         -Source "https://api.nuget.org/v3/index.json" `
     	-Source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
@@ -128,7 +128,8 @@ stages {
 			 dir (CLONE_FOLDER) {
 			  stage ("Build artifact ${BUILDNAME}") {
 				dir (CSPROJ_FOLDER) {
-					expr = /& ${env.VS_MSBUILD_PATH} ${SLN_PATH} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+					expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+					echo expr
 					powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
 				}
 			  }
