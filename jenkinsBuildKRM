@@ -7,6 +7,8 @@ BRANCH = "branch"
 DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
 commit = env.GIT_COMMIT
 SLN_FILE = "KRM.sln"
+Release = ""
+//Release = "-Properties Configuration=Release"
 SLN_FOLDER = ".\\"
 SLN_PATH = SLN_FOLDER  + SLN_FILE
 CLONE_FOLDER = "jb"
@@ -139,6 +141,7 @@ stages {
 					commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
 					BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
 					nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-")
+					//nugetVersion = env.BUILD_NUMBER FOR Release
 					dir (PUBLISH_NAME){
 						writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
@@ -158,7 +161,7 @@ stages {
 	<tags>${BRANCH} ${commitHash}</tags>
   </metadata>
 </package>""")
-						powershell ( encoding:"UTF8", script:"nuget pack")
+						powershell ( encoding:"UTF8", script:"nuget pack ${Release}")
                 		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
                 			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
 							url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
@@ -185,7 +188,7 @@ post {
 								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
         }  
 		chuckNorris ()
-		//cleanWs (notFailBuild: true)
+		cleanWs (notFailBuild: true)
       }	
   }
   success {

@@ -66,14 +66,14 @@ def generateStageFromPsScript(job) {
                   </metadata>
                 </package>""")
                 powershell ( encoding:"UTF8", script:"nuget pack")
-				if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
-					powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
-				}else{
-					catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-						error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
-				}
-				url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
-				currentBuild.description = currentBuild.description + "<br>${job}"+' <a href="' + url + '">link</a>  to artifact in nuget gallery'
+		if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
+			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
+		}else{
+			catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
+				error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
+		}
+		url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
+		currentBuild.description = currentBuild.description + "<br>${job}"+' <a href="' + url + '">link</a>  to artifact in nuget gallery'
         	}}
         }
       }
@@ -90,7 +90,7 @@ stages {
 	  // this step must be parametrized by tagged commit in hook
       cleanWs ()
       script {
-		currentBuild.description = "Bitbucket integration with Jenkins <b>${BUILDNAME}</b> build"
+        currentBuild.description = "Bitbucket integration with Jenkins <b>${BUILDNAME}</b> build"
 			// add default user for BB and replace 118 creds
         withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: '118', usernameVariable: 'username', passwordVariable: 'password']]) {
           powershell ( encoding: 'UTF8', script:"""
@@ -137,7 +137,7 @@ stages {
   } 
   stage ("Checkout branch") {
     steps {
-      echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
+      echo "Тут нужно будет реализовать в git clone --tag MY_TAG для выкатки в прод"
       script {
         echo "You choose ${BRANCH} branch, checkout"
         BRANCH = BRANCH.trim().toString().replaceAll("\\s","")
@@ -145,7 +145,7 @@ stages {
 		withCredentials([gitUsernamePassword(credentialsId: '118')]) {
 			if (BRANCH.contains (DEFAULT_BRANCH)) {
 					powershell ( encoding:"UTF8", script: "git clone ${GIT_URL} ${CLONE_FOLDER}")
-				}
+	    			}
 			else {
 			  powershell ( encoding:"UTF8", script: "git clone --single-branch --branch ${BRANCH} ${GIT_URL} ${CLONE_FOLDER}")
 			}
