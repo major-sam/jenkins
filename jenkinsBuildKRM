@@ -8,19 +8,20 @@ GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/krm.git"
 NUGET_REPO = "http://dev-comp49/"
 BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/krm/branches?limit=1000&type=BRANCH"
 BRANCH = "branch"
+ISSUE_KEY = 'NWP-148' 
 DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
 commit = env.GIT_COMMIT
 txtFile = "branch.txt"
 SLN_FILE = "KRM.sln"
-Release = ""
+Release = false
 SLN_FOLDER = ".\\"
 SLN_PATH = SLN_FOLDER  + SLN_FILE
 CLONE_FOLDER = "jb"
 CSPROJ_FILE = "Web.ClientWorkspace.csproj"
 CSPROJ_FOLDER = "Web.ClientWorkspace"
 CSPROJ_PATH = ".\\" + CSPROJ_FOLDER +"\\" + CSPROJ_FILE
-PUBLISH_NAME = "jenkinsBuild" + env.BUILD_NUMBER 
-PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_NAME}\" "
+PUBLISH_DIR = "jenkinsBuild" + env.BUILD_NUMBER 
+PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_DIR}\" "
 MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug=\"full\"  /p:PublishProfile=\"Production\" \"/p:DefineConstants=`\"krm;publish;;`\"\""
 NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
         -Source "https://api.nuget.org/v3/index.json" `
@@ -51,7 +52,8 @@ stages {
     steps {
      script{
       BRANCH = chooseBranchToBuild(txtFile: txtFile)
-      echo BRANCH
+      // set branch to descr - for jira integration
+      currentBuild.description = ISSUE_KEY
      }
     }
   } 
@@ -80,88 +82,63 @@ stages {
     }
   }
   stage('Dynamic Stages') {
-		steps {
-			script {
-			 dir (CLONE_FOLDER) {
-			  stage ("Build artifact ${BUILDNAME}") {
-				dir (CSPROJ_FOLDER) {
-					expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
-					echo expr
-					powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
-				}
-			  }
-			  stage ("Pack and push ${BUILDNAME} artifact to nuget") {
-				dir (CSPROJ_FOLDER) {				
-					commitMsg = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%B | ? {\$_.trim() -ne ''}")).trim()
-					commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
-					BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
-					nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-")
-					//nugetVersion = env.BUILD_NUMBER FOR Release
-					dir (PUBLISH_NAME){
-						writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
-  <metadata>
-	<id>${BUILDNAME}</id>
-	<version>1.0.${nugetVersion}</version>
-	<description>
-	  ${commitMsg}. 
-	  Git hash: ${commitHash}
-	</description>
-	<authors>${BUILD_TRIGGER_BY} by Jenkins</authors>
-	<repository type="git" url="${GIT_URL}" branch="${BRANCH}" commit="${commitHash}" />
-		<frameworkAssemblies>
-	  <frameworkAssembly assemblyName="System.Web" targetFramework="net40" />
-	  <frameworkAssembly assemblyName="System.Net" targetFramework="netcoreapp3.1" />
-	</frameworkAssemblies>
-	<tags>${BRANCH} ${commitHash}</tags>
-  </metadata>
-</package>""")
-						powershell ( encoding:"UTF8", script:"nuget pack ${Release}")
-                		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
-                			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
-							url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
-							currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+' <a href="' +url + '">link</a>  to artifact in nuget gallery'
-                		}else{
-							catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
-						}
-					}}
-				}
-			  }
-			}
-		}
-	}			  
+	steps {
+           script {
+	     dir (CLONE_FOLDER) {
+	        stage ("Build artifact ${BUILDNAME}") {
+	            dir (CSPROJ_FOLDER) {
+	                expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+	                echo expr
+	                powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
+	            }
+	        }       
+	    	stage ("Pack and push ${BUILDNAME} artifact to nuget") {
+	    	    dir (CSPROJ_FOLDER) {
+                        nugetPackAndPush(
+                            buildname: BUILDNAME,
+                            release: Release,
+                            git_url: GIT_URL,
+                            nuget_repo: NUGET_REPO,
+                            branch: BRANCH,
+                            default_branches: DEFAULT_BRANCHES,
+                            dir: PUBLISH_DIR
+                            )
+                    }
+	    	}
+	     }
+	   }
+	}
+  }			  
 }
 post {
   always {	
       script{          
-		dir("${workspace}@tmp") {
-                deleteDir()
-            }
+        echo "Build must be manualy enabled in Jira>Manage Apps>Jenkins Integration>Manage Sites>Jenkins>Search Job>${JOB_NAME} "
+        step([$class: 'DeploymentBuildMarker', environmentType: 'production'])
         if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
           catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
+		error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
         }  
-		chuckNorris ()
-		cleanWs (notFailBuild: true)
+	dir("${workspace}@tmp") {
+          deleteDir()
+        }
+	chuckNorris ()
+	cleanWs (notFailBuild: true)
       }	
   }
   success {
-	jiraComment issueKey: 'NWP-145' ,body: """(/)
-h1. {color:#00875A}BUILD ${BUILDNAME} SUCCSESFUL{color}
-h2. Jenkins build ${env.BUILD_NUMBER}
-[link |${env.BUILD_url}]
-----
-h2. Nuget artifact
-[link |${NUGET_REPO}packages/${BUILDNAME}/1.0.${nugetVersion}]
-"""  
+        notifyJiraSuccses(
+          issueKey:ISSUE_KEY,
+          buildName: BUILDNAME ,
+          nugetRepo: NUGET_REPO,
+          release: Release,
+          branch: BRANCH
+          )
   }
   failure {
-	jiraComment issueKey: 'NWP-145' ,body: """(x)
-h1. {color:#FF0000}BUILD ${BUILDNAME} FAILURE{color}
-h2. Jenkins build ${env.BUILD_NUMBER}
-[link |${env.BUILD_url}]
-----
-"""    
+        notifyJiraFailure(
+          issueKey:ISSUE_KEY,
+          buildName: BUILDNAME
+          )
     }
 }}
