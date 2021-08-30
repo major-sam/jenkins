@@ -44,7 +44,7 @@ def generateStageFromPsScript(job) {
       stage ("Pack and push ${job} artifact to nuget") {
        dir(job){
          nugetPackAndPush(
-           buildname: BUILDNAME,
+           buildname: job,
            release: Release,
            git_url: GIT_URL,
            nuget_repo: NUGET_REPO,
@@ -53,42 +53,6 @@ def generateStageFromPsScript(job) {
            dir: PUBLISH_DIR
            )
         }   
-       // script {
-       // 	//TODO IN MULTIBRANCH NEEDS TO REPLACE
-       //     commitMsg = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%B | ? {\$_.trim() -ne ''}")).trim()
-       //     commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
-       //     BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
-       // 	nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-").replace("_","-")
-       //     dir (job) { dir (PUBLISH_NAME){
-       //         writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
-       //         <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
-       //           <metadata>
-       //             <id>${job}</id>
-       //             <version>1.0.${nugetVersion}</version>
-       //             <description>
-       //         	  ${commitMsg}. 
-       //               Git hash: ${commitHash}
-       //         	</description>
-       //             <authors>${BUILD_TRIGGER_BY} by Jenkins</authors>
-       //             <repository type="git" url="${GIT_URL}" branch="${BRANCH}" commit="${commitHash}" />
-       //         		<frameworkAssemblies>
-       //               <frameworkAssembly assemblyName="System.Web" targetFramework="net40" />
-       //               <frameworkAssembly assemblyName="System.Net" targetFramework="netcoreapp3.1" />
-       //             </frameworkAssemblies>
-       //         	<tags>${BRANCH} ${commitHash}</tags>
-       //           </metadata>
-       //         </package>""")
-       //         powershell ( encoding:"UTF8", script:"nuget pack")
-       // 			if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
-       // 				powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
-       // 				url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
-       // 				currentBuild.description = currentBuild.description + "<br>${job}"+' <a href="' +url + '">link</a> to artifact in nuget gallery'
-       // 			}else{
-       // 				catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-       // 					error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
-       // 			}		
-       // 	}}
-       // }
       }
     }
   }
@@ -101,76 +65,22 @@ pipeline {
 stages {
   stage ('Get Bitbucket branches') {
     steps {
-	  // this step must be parametrized by tagged commit in hook
       cleanWs ()
       bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
-      //script {
-      //  	currentBuild.description = "Bitbucket integration with Jenkins <b>${BUILDNAME}</b> build"
-      //  		// add default user for BB and replace 118 creds
-      //  withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: '118', usernameVariable: 'username', passwordVariable: 'password']]) {
-      //    powershell ( encoding: 'UTF8', script:"""
-      //      \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
-      //      \$requestHeaders = @{
-      //        "content-length" = 0
-      //        "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
-      //      }
-      //      \$endpointUri = '$BRANCH_LIST_URL'
-      //      \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
-      //      \$json.values.displayId | Sort-Object | set-content -Encoding "utf8" branch.txt
-      //    """)
-      //    DEFAULT_BRANCH = powershell ( encoding: 'UTF8', returnStdout: 'true', script:"""
-      //      \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
-      //      \$requestHeaders = @{
-      //        "content-length" = 0
-      //        "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
-      //      }
-      //      \$endpointUri = '$BRANCH_LIST_URL'
-      //      \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
-      //      \$default = \$json.values | where { \$_.isDefault -eq "true" } 
-      //      \$default.displayId.trim()
-      //    """)
-      //  }
-      //}
     }
   }
    stage ('Set branch to build') {
     steps {
       script {
         BRANCH = chooseBranchToBuild(txtFile: txtFile)
-        // set branch to descr - for jira integration
         currentBuild.description = ISSUE_KEY
-//        branchList = readFile ( file:"${env.workspace}/branch.txt", encoding: "UTF-8")
-//        echo "please click on the link here to chose the branch to build"
-//        BRANCH = input message: 'Please choose the branch to build ', ok: 'Build!',
-//            parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
-//        BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
-//		if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
-//			echo "valid branch naming ${BRANCH} "
-//		}else{			
-//			catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-//			 error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
-//		}
-	  }
+      }
     }
   } 
   stage ("Checkout branch") {
     steps {
       echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
       checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
-     // echo "Тут нужно будет переделать в git clone --tag MY_TAG"
-     // script {
-     //   echo "You choose ${BRANCH} branch, checkout"
-     //   BRANCH = BRANCH.trim().toString().replaceAll("\\s","")
-     //   DEFAULT_BRANCH =DEFAULT_BRANCH.trim().toString().replaceAll("\\s","")
-     //   	withCredentials([gitUsernamePassword(credentialsId: '118')]) {
-     //   		if (BRANCH.contains (DEFAULT_BRANCH)) {
-     //   				powershell ( encoding:"UTF8", script: "git clone ${GIT_URL} ${CLONE_FOLDER}")
-     //   			}
-     //   		else {
-     //   		  powershell ( encoding:"UTF8", script: "git clone --single-branch --branch ${BRANCH} ${GIT_URL} ${CLONE_FOLDER}")
-     //   		}
-     //   	}
-     // }
     }
   }	
   stage ("Nuget restore") {
@@ -230,7 +140,7 @@ post {
           job: JOB_NAME,
           branch: BRANCH
           )
-
+  //:  cleanWs (notFailBuild: true)
   }
   success {
         notifyJiraSuccses(
