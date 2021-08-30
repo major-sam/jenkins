@@ -1,3 +1,7 @@
+@Library("Default") _
+
+
+
 BUILDNAME = "KRM"
 GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/krm.git"
 GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/krm.git"
@@ -6,19 +10,17 @@ BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/re
 BRANCH = "branch"
 DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
 commit = env.GIT_COMMIT
+txtFile = "branch.txt"
 SLN_FILE = "KRM.sln"
 Release = ""
-//Release = "-Properties Configuration=Release"
 SLN_FOLDER = ".\\"
 SLN_PATH = SLN_FOLDER  + SLN_FILE
 CLONE_FOLDER = "jb"
 CSPROJ_FILE = "Web.ClientWorkspace.csproj"
 CSPROJ_FOLDER = "Web.ClientWorkspace"
 CSPROJ_PATH = ".\\" + CSPROJ_FOLDER +"\\" + CSPROJ_FILE
-DEFAULT_BRANCH = ""
 PUBLISH_NAME = "jenkinsBuild" + env.BUILD_NUMBER 
 PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_NAME}\" "
-// DefineConstants %IGNORE_AUTH% true by default. put it to pipline params
 MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug=\"full\"  /p:PublishProfile=\"Production\" \"/p:DefineConstants=`\"krm;publish;;`\"\""
 NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
         -Source "https://api.nuget.org/v3/index.json" `
@@ -40,52 +42,30 @@ pipeline {
 stages {
   stage ('Get Bitbucket branches') {
     steps {
-	  // this step must be parametrized by tagged commit in hook
       cleanWs ()
-      script {
-		currentBuild.description = "Bitbucket integration with Jenkins <b>${BUILDNAME}</b> build"
-			// add default user for BB and replace 118 creds
-        withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: '118', usernameVariable: 'username', passwordVariable: 'password']]) {
-          powershell ( encoding: 'UTF8', script:"""
-            \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
-            \$requestHeaders = @{
-              "content-length" = 0
-              "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
-            }
-            \$endpointUri = '$BRANCH_LIST_URL'
-            \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
-            \$json.values.displayId | Sort-Object | set-content -Encoding "utf8" branch.txt
-          """)
-          DEFAULT_BRANCH = powershell ( encoding: 'UTF8', returnStdout: 'true', script:"""
-            \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
-            \$requestHeaders = @{
-              "content-length" = 0
-              "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
-            }
-            \$endpointUri = '$BRANCH_LIST_URL'
-            \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
-            \$default = \$json.values | where { \$_.isDefault -eq "true" } 
-            \$default.displayId.trim()
-          """)
-        }
-      }
+      bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
     }
   }
   stage ('Set branch to build') {
     steps {
-      script {
-        branchList = readFile ( file:"${env.workspace}/branch.txt", encoding: "UTF-8")
-        echo "please click on the link here to chose the branch to build"
-        BRANCH = input message: 'Please choose the branch to build ', ok: 'Build!',
-            parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
-        BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
-        echo BRANCH
-		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
-			echo "valid branch naming ${BRANCH} "
-		}else{			
-			echo "invalid branch naming ${BRANCH} BUILD WILL BE FAILED IN POST!"
-		}
-      }
+     script{
+      BRANCH = chooseBranchToBuild(txtFile: txtFile)
+      echo BRANCH
+     }
+       
+   //   script {
+   //     branchList = readFile ( file:"${env.workspace}/branch.txt", encoding: "UTF-8")
+   //     "please click on the link here to chose the branch to build"
+   //     BRANCH = input message: 'Please choose the branch to build ', ok: 'Build!',
+   //         parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
+   //     BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
+   //     echo BRANCH
+   //     	if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in env.DEFAULT_BRANCHES)){
+   //     		echo "valid branch naming ${BRANCH} "
+   //     	}else{			
+   //     		echo "invalid branch naming ${BRANCH} BUILD WILL BE FAILED IN POST!"
+   //     	}
+   //   }
     }
   } 
   stage ("Checkout branch") {
@@ -94,9 +74,9 @@ stages {
       script {
         echo "You choose ${BRANCH} branch, checkout"
         BRANCH = BRANCH.trim().toString().replaceAll("\\s","")
-        DEFAULT_BRANCH = DEFAULT_BRANCH.trim().toString().replaceAll("\\s","")
+        env.DEFAULT_BRANCH = env.DEFAULT_BRANCH.trim().toString().replaceAll("\\s","")
 		withCredentials([gitUsernamePassword(credentialsId: '118')]) {
-			if (BRANCH.contains (DEFAULT_BRANCH)) {
+			if (BRANCH.contains (env.DEFAULT_BRANCH)) {
 					powershell ( encoding:"UTF8", script: "git clone ${GIT_URL} ${CLONE_FOLDER}")
 				}
 			else {
@@ -162,7 +142,7 @@ stages {
   </metadata>
 </package>""")
 						powershell ( encoding:"UTF8", script:"nuget pack ${Release}")
-                		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
+                		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in env.DEFAULT_BRANCHES)){
                 			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
 							url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
 							currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+' <a href="' +url + '">link</a>  to artifact in nuget gallery'
@@ -183,7 +163,7 @@ post {
 		dir("${workspace}@tmp") {
                 deleteDir()
             }
-        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
+        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in env.DEFAULT_BRANCHES))){
           catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
 								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
         }  
