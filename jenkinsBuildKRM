@@ -112,19 +112,12 @@ stages {
 }
 post {
   always {	
-      script{          
-        echo "Build must be manualy enabled in Jira>Manage Apps>Jenkins Integration>Manage Sites>Jenkins>Search Job>${JOB_NAME} "
-        step([$class: 'DeploymentBuildMarker', environmentType: 'production'])
-        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
-          catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-		error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
-        }  
-	dir("${workspace}@tmp") {
-          deleteDir()
-        }
-	chuckNorris ()
-	cleanWs (notFailBuild: true)
-      }	
+    alwaysBuild(
+          default_branches: DEFAULT_BRANCHES,
+          job: JOB_NAME,
+          branch: BRANCH
+          )
+
   }
   success {
         notifyJiraSuccses(
