@@ -33,7 +33,8 @@ DOTNET_PARAMS = """ restore $SLN_PATH --source "http://nuget.gkbaltbet.local/nug
     	--source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
     	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release" `
     	--source "\\\\server\\tcbuild\$\\!Nuget-Packages-Archive" `
-    	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release"	"""
+    	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release"
+        """
 
 
 
@@ -50,25 +51,14 @@ stages {
     steps {
      script{
       BRANCH = chooseBranchToBuild(txtFile: txtFile)
+      echo BRANCH
      }
     }
   } 
   stage ("Checkout branch") {
     steps {
       echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
-      script {
-        echo "You choose ${BRANCH} branch, checkout"
-        BRANCH = BRANCH.trim().toString().replaceAll("\\s","")
-        env.DEFAULT_BRANCH = env.DEFAULT_BRANCH.trim().toString().replaceAll("\\s","")
-		withCredentials([gitUsernamePassword(credentialsId: '118')]) {
-			if (BRANCH.contains (env.DEFAULT_BRANCH)) {
-					powershell ( encoding:"UTF8", script: "git clone ${GIT_URL} ${CLONE_FOLDER}")
-				}
-			else {
-			  powershell ( encoding:"UTF8", script: "git clone --single-branch --branch ${BRANCH} ${GIT_URL} ${CLONE_FOLDER}")
-			}
-		}
-      }
+      checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
     }
   }	
   stage ("Nuget restore") {
@@ -127,7 +117,7 @@ stages {
   </metadata>
 </package>""")
 						powershell ( encoding:"UTF8", script:"nuget pack ${Release}")
-                		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in env.DEFAULT_BRANCHES)){
+                		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
                 			powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
 							url = 'https://dev-comp49/packages/' + BUILDNAME + '/' +  "1.0.${nugetVersion}"
 							currentBuild.description = currentBuild.description + "<br>${BUILDNAME}"+' <a href="' +url + '">link</a>  to artifact in nuget gallery'
@@ -148,7 +138,7 @@ post {
 		dir("${workspace}@tmp") {
                 deleteDir()
             }
-        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in env.DEFAULT_BRANCHES))){
+        if (!((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES))){
           catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
 								error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
         }  
