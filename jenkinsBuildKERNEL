@@ -79,7 +79,6 @@ stages {
   } 
   stage ("Checkout branch") {
     steps {
-      echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
       checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
     }
   }	
