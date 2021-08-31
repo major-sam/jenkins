@@ -107,33 +107,6 @@ stages {
 	  // this step must be parametrized by tagged commit in hook
       cleanWs ()
       bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
-      //script {
-      //  currentBuild.description = "Bitbucket integration with Jenkins <b>${BUILDNAME}</b> build"
-      //  		// add default user for BB and replace 118 creds
-      //  withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: '118', usernameVariable: 'username', passwordVariable: 'password']]) {
-      //    powershell ( encoding: 'UTF8', script:"""
-      //      \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
-      //      \$requestHeaders = @{
-      //        "content-length" = 0
-      //        "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
-      //      }
-      //      \$endpointUri = '$BRANCH_LIST_URL'
-      //      \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
-      //      \$json.values.displayId | Sort-Object | set-content -Encoding "utf8" branch.txt
-      //    """)
-      //    DEFAULT_BRANCH = powershell ( encoding: 'UTF8', returnStdout: 'true', script:"""
-      //      \$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "$username","$password")))
-      //      \$requestHeaders = @{
-      //        "content-length" = 0
-      //        "Authorization" = ('Basic {0}' -f \$base64AuthInfo)
-      //      }
-      //      \$endpointUri = '$BRANCH_LIST_URL'
-      //      \$json = Invoke-RestMethod -Method get -Uri \$endpointUri -Headers \$requestHeaders -ContentType "application/json"
-      //      \$default = \$json.values | where { \$_.isDefault -eq "true" } 
-      //      \$default.displayId.trim()
-      //    """)
-      //  }
-      //}
     }
   }
   stage ('Set branch to build') {
@@ -141,36 +114,12 @@ stages {
       script {
         BRANCH = chooseBranchToBuild(txtFile: txtFile)
         currentBuild.description = ISSUE_KEY
-//        branchList = readFile ( file:"${env.workspace}/branch.txt", encoding: "UTF-8")
-//        echo "please click on the link here to chose the branch to build"
-//        BRANCH = input message: 'Please choose the branch to build ', ok: 'Build!',
-//            parameters: [choice (name: 'BRANCH_NAME', choices: "${branchList}", description: 'Branch to build?')]
-//        BRANCH = BRANCH.replaceAll("[\\s ,\\p{Z}, \\p{C}]+", "").trim()
-//        echo BRANCH
-//		if((BRANCH ==~ env.BRANCH_REGEX )||(BRANCH in DEFAULT_BRANCHES)){
-//			echo "valid branch naming ${BRANCH} "
-//		}else{			
-//			echo "invalid branch naming ${BRANCH} BUILD WILL BE FAILED IN POST!"
-//		}
       }
     }
   } 
   stage ("Checkout branch") {
     steps {
       checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
-      // script {
-      //   echo "You choose ${BRANCH} branch, checkout"
-      //   BRANCH = BRANCH.trim().toString().replaceAll("\\s","")
-      //   DEFAULT_BRANCH = DEFAULT_BRANCH.trim().toString().replaceAll("\\s","")
-      //   	withCredentials([gitUsernamePassword(credentialsId: '118')]) {
-      //   		if (BRANCH.contains (DEFAULT_BRANCH)) {
-      //   				powershell ( encoding:"UTF8", script: "git clone ${GIT_URL} ${CLONE_FOLDER}")
-      //       			}
-      //   		else {
-      //   		  powershell ( encoding:"UTF8", script: "git clone --single-branch --branch ${BRANCH} ${GIT_URL} ${CLONE_FOLDER}")
-      //   		}
-      //   	}
-      // }
     }
   }	
   stage ("Nuget restore") {
