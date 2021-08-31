@@ -9,7 +9,7 @@ NUGET_REPO = "http://dev-comp49/"
 BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/website/branches?limit=1000&type=BRANCH"
 BRANCH = "branch"
 ISSUE_KEY = 'NWP-148' 
-DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
+DEFAULT_BRANCHES = ['release', 'master', 'develop-cps', 'develop-com', 'develop', 'main']
 commit = env.GIT_COMMIT
 txtFile = "branch.txt"
 Release = false
@@ -44,23 +44,38 @@ pipeline {
 stages {
   stage ('Get Bitbucket branches') {
     steps {
-      cleanWs ()
-      bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
+      script {
+	  // this step must be parametrized by tagged commit in hook
+         cleanWs ()
+         echo BRANCH_LIST_URL
+         def map = bbRestApiBranches(creds:'118', branchListUrl:BRANCH_LIST_URL, txtFile:txtFile)
+         BRANCH_COUNT = map.branchCount
+         DEFAULT_BRANCH = map.defaultBranch
+      }
     }
   }
   stage ('Set branch to build') {
     steps {
      script{
-      BRANCH = chooseBranchToBuild(txtFile: txtFile)
-      // set branch to descr - for jira integration
+        BRANCH = chooseBranchToBuild(
+          txtFile: txtFile, 
+          branchCount: BRANCH_COUNT,
+          defaultBranches: DEFAULT_BRANCHES
+          )
       currentBuild.description = ISSUE_KEY
      }
     }
   } 
   stage ("Checkout branch") {
     steps {
-      echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
-      checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
+      echo BRANCH
+      checkoutBranch(
+        creds: '118',
+        branch:BRANCH, 
+        gitUrl:GIT_URL, 
+        cloneFolder:CLONE_FOLDER, 
+        defaultBranch:DEFAULT_BRANCH
+        )
     }
   }	
   stage ("Nuget restore") {
@@ -84,6 +99,11 @@ stages {
   stage('Dynamic Stages') {
 	steps {
            script {
+           // КОСТЫЛЬ ДЛЯ  КРИВОЙ РЕПЫ БАЛТБЕТ САЙТОВ
+             if (BRANCH in ['develop-cps','develop-com']){
+                BUILDNAME =${BUILDNAME}+(${BRANCH} - 'develop')
+                echo BUILDNAME
+             }
 	     dir (CLONE_FOLDER) {
 	        stage ("Build artifact ${BUILDNAME}") {
 	            dir (CSPROJ_FOLDER) {

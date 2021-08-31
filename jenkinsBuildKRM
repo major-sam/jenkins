@@ -44,23 +44,36 @@ pipeline {
 stages {
   stage ('Get Bitbucket branches') {
     steps {
-      cleanWs ()
-      bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
+      script {
+	  // this step must be parametrized by tagged commit in hook
+         cleanWs ()
+         def map = bbRestApiBranches(creds:'118', branchListUrl:BRANCH_LIST_URL, txtFile:txtFile)
+         BRANCH_COUNT = map.branchCount
+         DEFAULT_BRANCH = map.defaultBranch
+      }
     }
   }
   stage ('Set branch to build') {
     steps {
      script{
-      BRANCH = chooseBranchToBuild(txtFile: txtFile)
-      // set branch to descr - for jira integration
-      currentBuild.description = ISSUE_KEY
+       BRANCH = chooseBranchToBuild(
+          txtFile: txtFile, 
+          branchCount: BRANCH_COUNT,
+          defaultBranches: DEFAULT_BRANCHES
+          )
+       currentBuild.description = ISSUE_KEY
      }
     }
   } 
   stage ("Checkout branch") {
     steps {
-      echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
-      checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
+      checkoutBranch(
+        creds: '118',
+        branch:BRANCH, 
+        gitUrl:GIT_URL, 
+        cloneFolder:CLONE_FOLDER, 
+        defaultBranch:DEFAULT_BRANCH
+        )
     }
   }	
   stage ("Nuget restore") {

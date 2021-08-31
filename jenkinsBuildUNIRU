@@ -56,43 +56,6 @@ def generateStageFromPsScript(job) {
            dir: PUBLISH_DIR
            )
         }   
-      //  script {
-      //  	//TODO IN MULTIBRANCH NEEDS TO REPLACE
-      //      commitMsg = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%B | ? {\$_.trim() -ne ''}")).trim()
-      //  	//TODO IN MULTIBRANCH NEEDS TO REPLACE
-      //      commitHash = (powershell ( encoding:"UTF8", returnStdout: 'true', script:"git log -1 --pretty=%H | ? {\$_.trim() -ne ''}")).trim()
-      //      BUILD_TRIGGER_BY = ("${currentBuild.getBuildCauses ()[0].shortDescription} / ${currentBuild.getBuildCauses ()[0].userId}").replace("Started by user ","").replace("\\s*","\\")
-      //  	nugetVersion = (env.BUILD_NUMBER + "-" +BRANCH).replace("/","-")
-      //      dir (job) { dir (PUBLISH_NAME){
-      //          writeFile ( file: "nuget.nuspec", encoding:"UTF8", text: """<?xml version="1.0" encoding="utf-8"?>
-      //          <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
-      //            <metadata>
-      //              <id>${job}</id>
-      //              <version>1.0.${nugetVersion}</version>
-      //              <description>
-      //          	  ${commitMsg}. 
-      //                Git hash: ${commitHash}
-      //          	</description>
-      //              <authors>${BUILD_TRIGGER_BY} by Jenkins</authors>
-      //              <repository type="git" url="${GIT_URL}" branch="${BRANCH}" commit="${commitHash}" />
-      //          		<frameworkAssemblies>
-      //                <frameworkAssembly assemblyName="System.Web" targetFramework="net40" />
-      //                <frameworkAssembly assemblyName="System.Net" targetFramework="netcoreapp3.1" />
-      //              </frameworkAssemblies>
-      //          	<tags>${BRANCH} ${commitHash}</tags>
-      //            </metadata>
-      //          </package>""")
-      //          powershell ( encoding:"UTF8", script:"nuget pack")
-      //  	if((BRANCH ==~ env.BRANCH_REGEX ) ||(BRANCH in DEFAULT_BRANCHES)){
-      //  		powershell ( encoding:"UTF8", script:"nuget push *.nupkg -Source ${NUGET_REPO} -ApiKey ${env.NuggetGalleryApiKey}")
-      //  	}else{
-      //  		catchError(message: "Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH", buildResult: 'UNSTABLE', stageResult: 'UNSTABLE'){
-      //  			error ("Invalid branch naming ${BRANCH}. NO NUGET PUSH, NO JIRA PUSH")  }
-      //  	}
-      //  	url = 'https://dev-comp49/packages/' + job + '/' +  "1.0.${nugetVersion}"
-      //  	currentBuild.description = currentBuild.description + "<br>${job}"+' <a href="' + url + '">link</a>  to artifact in nuget gallery'
-      //  	}}
-      //  }
       }
     }
   }
@@ -104,30 +67,43 @@ pipeline {
 stages {
   stage ('Get Bitbucket branches') {
     steps {
+      script {
 	  // this step must be parametrized by tagged commit in hook
-      cleanWs ()
-      bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
+         cleanWs ()
+         echo BRANCH_LIST_URL
+         def map = bbRestApiBranches(creds:'118', branchListUrl:BRANCH_LIST_URL, txtFile:txtFile)
+         BRANCH_COUNT = map.branchCount
+         DEFAULT_BRANCH = map.defaultBranch
+      }
     }
   }
   stage ('Set branch to build') {
     steps {
       script {
-        BRANCH = chooseBranchToBuild(txtFile: txtFile)
+        BRANCH = chooseBranchToBuild(
+          txtFile: txtFile, 
+          branchCount: BRANCH_COUNT,
+          defaultBranches: DEFAULT_BRANCHES
+          )
         currentBuild.description = ISSUE_KEY
       }
     }
   } 
   stage ("Checkout branch") {
     steps {
-      checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
+      checkoutBranch(
+        creds: '118',
+        branch:BRANCH, 
+        gitUrl:GIT_URL, 
+        cloneFolder:CLONE_FOLDER, 
+        defaultBranch:DEFAULT_BRANCH
+        )
     }
   }	
   stage ("Nuget restore") {
     steps {
       script {
         dir (CLONE_FOLDER) {
-		  // command for output debug command line example	
-          //powershell ( encoding:"UTF8", script:"write-host nuget.exe ${NUGET_PARAMS}")
           powershell ( encoding:"UTF8", script:"nuget.exe ${NUGET_PARAMS}")
         }
       }
