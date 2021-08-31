@@ -22,7 +22,6 @@ CSPROJ_PATH = ".\\" + CSPROJ_FOLDER +"\\" + CSPROJ_FILE
 DEFAULT_BRANCH = ""
 PUBLISH_DIR = "jenkinsBuild" + env.BUILD_NUMBER 
 PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_DIR}\" "
-OUTPUT_PARAMS = " /p:OutputPath=\"${PUBLISH_DIR}\" " 
 MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug='full' "
 NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
         -Source "https://api.nuget.org/v3/index.json" `
@@ -53,7 +52,8 @@ def generateStageFromPsScript(job) {
            nuget_repo: NUGET_REPO,
            branch: BRANCH,
            default_branches: DEFAULT_BRANCHES,
-           dir: PUBLISH_DIR
+           dir: PUBLISH_DIR,
+           issue: ISSUE_KEY
            )
         }   
       }
@@ -119,18 +119,22 @@ stages {
     }
   }
   stage ("Build artifact Uniru") {
-        steps {script {dir (CLONE_FOLDER) {
-			MSBUILD_CONST = ' /p:DefineConstants=\"cps;publish;;\" /p:PublishProfile=\"Production\" '
-            expr = SLN_PATH +  MSBUILD_PARAMS + PUBLISH_PARAMS + OUTPUT_PARAMS + MSBUILD_CONST
-            powershell ( encoding:"UTF8", returnStdout: 'true', script:'& \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}')
+    steps {
+		script {dir (CLONE_FOLDER) {dir (CSPROJ_FOLDER) {
+			MSBUILD_CONST = " /p:DefineConstants=\"cps;publish;;\" /p:PublishProfile=\"Production\" "
+			expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+            powershell ( encoding:"UTF8", returnStdout: 'true', script:expr)
         }}}
+	}
       }
   stage ("Build artifact UniruWebApi") {
-    steps {script {dir (CLONE_FOLDER) {
-		MSBUILD_CONST = ' /p:DefineConstants=\"cps;publish;disable_warmup;webapi;enable_swagger\" /p:PublishProfile=\"Production\" '
-        expr = SLN_PATH +  MSBUILD_PARAMS + PUBLISH_PARAMS + OUTPUT_PARAMS + MSBUILD_CONST
-        powershell ( encoding:"UTF8", returnStdout: 'true', script:'& \'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe\' ${expr}')
-    }}}
+    steps {
+		script {dir (CLONE_FOLDER) {dir (CSPROJ_FOLDER) {
+			MSBUILD_CONST =  " /p:DefineConstants=\"cps;publish;disable_warmup;webapi;enable_swagger\" /p:PublishProfile=\"Production\" "
+			expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+			powershell ( encoding:"UTF8", returnStdout: 'true', script:expr)
+		}}}
+	}
   }
   stage('Parralell push'){
     steps{  

@@ -2,7 +2,7 @@
 
 
 
-BUILDNAME = "BATBETCOM-RU"
+BUILDNAME = "BALTBETCOM-RU"
 GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/website.git"
 GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/website.git"
 NUGET_REPO = "http://dev-comp49/"
@@ -101,8 +101,7 @@ stages {
            script {
            // КОСТЫЛЬ ДЛЯ  КРИВОЙ РЕПЫ БАЛТБЕТ САЙТОВ
              if (BRANCH in ['develop-cps','develop-com']){
-                BUILDNAME =${BUILDNAME}+(${BRANCH} - 'develop')
-                echo BUILDNAME
+                Release = true
              }
 	     dir (CLONE_FOLDER) {
 	        stage ("Build artifact ${BUILDNAME}") {
@@ -121,7 +120,8 @@ stages {
                             nuget_repo: NUGET_REPO,
                             branch: BRANCH,
                             default_branches: DEFAULT_BRANCHES,
-                            dir: PUBLISH_DIR
+                            dir: PUBLISH_DIR,
+                            issue: ISSUE_KEY
                             )
                     }
 	    	}

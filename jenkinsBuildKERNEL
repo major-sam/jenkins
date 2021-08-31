@@ -50,7 +50,8 @@ def generateStageFromPsScript(job) {
            nuget_repo: NUGET_REPO,
            branch: BRANCH,
            default_branches: DEFAULT_BRANCHES,
-           dir: PUBLISH_DIR
+           dir: PUBLISH_DIR,
+           issue: ISSUE_KEY
            )
         }   
       }
