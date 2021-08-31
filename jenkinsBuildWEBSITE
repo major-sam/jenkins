@@ -1,0 +1,137 @@
+@Library("Default") _
+
+
+
+BUILDNAME = "BATBETCOM-RU"
+GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/website.git"
+GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/website.git"
+NUGET_REPO = "http://dev-comp49/"
+BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/website/branches?limit=1000&type=BRANCH"
+BRANCH = "branch"
+ISSUE_KEY = 'NWP-148' 
+DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
+commit = env.GIT_COMMIT
+txtFile = "branch.txt"
+Release = false
+SLN_FILE = "WebSite.sln"
+SLN_FOLDER = ".\\"
+SLN_PATH = SLN_FOLDER  + SLN_FILE
+CLONE_FOLDER = "jb"
+CSPROJ_FILE = "WebSite.csproj"
+CSPROJ_FOLDER = "WebSite"
+CSPROJ_PATH = ".\\" + CSPROJ_FOLDER +"\\" + CSPROJ_FILE
+PUBLISH_DIR = "jenkinsBuild" + env.BUILD_NUMBER 
+PUBLISH_PARAMS = " /p:publishUrl=\".\\${PUBLISH_DIR}\" "
+MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /p:RuntimeIdentifiers=net471 /v:n /p:DeployOnBuild=True /p:debug=\"full\"  /p:PublishProfile=LocalPublish \"/p:DefineConstants=`\"publish  FORCE_HTTPS`\"\""
+NUGET_PARAMS = """ restore $SLN_PATH -NoCache  -Source "http://nuget.gkbaltbet.local/nuget" `
+        -Source "https://api.nuget.org/v3/index.json" `
+    	-Source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
+    	-Source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release" `
+    	-Source "\\\\server\\tcbuild\$\\!Nuget-Packages-Archive" `
+    	-Source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release"	"""
+DOTNET_PARAMS = """ restore $SLN_PATH --source "http://nuget.gkbaltbet.local/nuget" `
+        --source "https://api.nuget.org/v3/index.json" `
+    	--source "https://nuget.devexpress.com/dQholn9iJ89gaU1OHj227baJqIi9PubbsGLBb1KG7kCZc1hniY/api" `
+    	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release" `
+    	--source "\\\\server\\tcbuild\$\\!Nuget-Packages-Archive" `
+    	--source "\\\\server\\tcbuild\$\\!NEXT_Nuget_Packages\\Release"
+        """
+
+
+
+pipeline {
+	agent { node { label 'build' }}
+stages {
+  stage ('Get Bitbucket branches') {
+    steps {
+      cleanWs ()
+      bbRestApiBranches(creds:'118', BRANCH_LIST_URL:BRANCH_LIST_URL, txtFile:txtFile)
+    }
+  }
+  stage ('Set branch to build') {
+    steps {
+     script{
+      BRANCH = chooseBranchToBuild(txtFile: txtFile)
+      // set branch to descr - for jira integration
+      currentBuild.description = ISSUE_KEY
+     }
+    }
+  } 
+  stage ("Checkout branch") {
+    steps {
+      echo "Тут нужно будет переделать в git clone --tag MY_TAG для выкатки в прод"
+      checkoutBranch(creds: '118', BRANCH:BRANCH, GIT_URL:GIT_URL, CLONE_FOLDER:CLONE_FOLDER)
+    }
+  }	
+  stage ("Nuget restore") {
+    steps {
+      script {
+        dir (CLONE_FOLDER) {
+          powershell ( encoding:"UTF8", script:"nuget.exe ${NUGET_PARAMS}")
+        }
+      }
+    }
+  }
+  stage (".Net restore") {	
+    steps {
+      script {
+        dir (CLONE_FOLDER) {
+          powershell ( encoding:"UTF8", returnStdout: 'true', script:" & 'C:\\Program Files\\dotnet\\dotnet.exe' ${DOTNET_PARAMS}")
+        }
+      }
+    }
+  }
+  stage('Dynamic Stages') {
+	steps {
+           script {
+	     dir (CLONE_FOLDER) {
+	        stage ("Build artifact ${BUILDNAME}") {
+	            dir (CSPROJ_FOLDER) {
+	                expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+	                echo expr
+	                powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
+	            }
+	        }       
+	    	stage ("Pack and push ${BUILDNAME} artifact to nuget") {
+	    	    dir (CSPROJ_FOLDER) {
+                        nugetPackAndPush(
+                            buildname: BUILDNAME,
+                            release: Release,
+                            git_url: GIT_URL,
+                            nuget_repo: NUGET_REPO,
+                            branch: BRANCH,
+                            default_branches: DEFAULT_BRANCHES,
+                            dir: PUBLISH_DIR
+                            )
+                    }
+	    	}
+	     }
+	   }
+	}
+  }			  
+}
+post {
+  always {	
+    alwaysBuild(
+          default_branches: DEFAULT_BRANCHES,
+          job: JOB_NAME,
+          branch: BRANCH
+          )
+
+  }
+  success {
+        notifyJiraSuccses(
+          issueKey:ISSUE_KEY,
+          buildName: BUILDNAME ,
+          nugetRepo: NUGET_REPO,
+          release: Release,
+          branch: BRANCH
+          )
+  }
+  failure {
+        notifyJiraFailure(
+          issueKey:ISSUE_KEY,
+          buildName: BUILDNAME
+          )
+    }
+}}
