@@ -43,19 +43,16 @@ def generateStageFromPsScript(job) {
   return {
     stage (job){
       stage ("Pack and push ${job} artifact to nuget") {
-
-       dir(job){
-         nugetPackAndPush(
-           buildname: job,
-           release: Release,
-           git_url: GIT_URL,
-           nuget_repo: NUGET_REPO,
-           branch: BRANCH,
-           default_branches: DEFAULT_BRANCHES,
-           dir: PUBLISH_DIR,
-           issue: ISSUE_KEY
-           )
-        }   
+		nugetPackAndPush(
+			buildname: job,
+			release: Release,
+			git_url: GIT_URL,
+			nuget_repo: NUGET_REPO,
+			branch: BRANCH,
+			default_branches: DEFAULT_BRANCHES,
+			dir: job + PUBLISH_DIR,
+			issue: ISSUE_KEY
+		)  
       }
     }
   }
@@ -120,20 +117,24 @@ stages {
   }
   stage ("Build artifact Uniru") {
     steps {
-		script {dir (CLONE_FOLDER) {dir (CSPROJ_FOLDER) {
-			MSBUILD_CONST = " /p:DefineConstants=\"cps;publish;;\" /p:PublishProfile=\"Production\" "
-			expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+		script {dir (CLONE_FOLDER) {
+			MSBUILD_CONST = " /p:PublishProfile=\"Production\" \"/p:DefineConstants=`\"cps;publish;;`\"\" "
+			PUBLISH_PARAMS = " /p:publishUrl=\"${env.WORKSPACE}\\${CLONE_FOLDER}\\Uniru${PUBLISH_DIR}\" "
+			expr = /& ${env.VS_MSBUILD_PATH} ${SLN_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${MSBUILD_CONST}/ 
+			echo expr
             powershell ( encoding:"UTF8", returnStdout: 'true', script:expr)
-        }}}
+        }}
 	}
       }
   stage ("Build artifact UniruWebApi") {
     steps {
-		script {dir (CLONE_FOLDER) {dir (CSPROJ_FOLDER) {
-			MSBUILD_CONST =  " /p:DefineConstants=\"cps;publish;disable_warmup;webapi;enable_swagger\" /p:PublishProfile=\"Production\" "
-			expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS}/ 
+		script {dir (CLONE_FOLDER) {
+			MSBUILD_CONST =  " /p:PublishProfile=\"Production\" \"/p:DefineConstants=`\"cps;publish;disable_warmup;webapi;enable_swagger`\"\" "
+			PUBLISH_PARAMS = " /p:publishUrl=\"${env.WORKSPACE}\\${CLONE_FOLDER}\\UniruWebApi${PUBLISH_DIR}\" "
+			expr = /& ${env.VS_MSBUILD_PATH} ${SLN_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${MSBUILD_CONST}/ 
+			echo expr
 			powershell ( encoding:"UTF8", returnStdout: 'true', script:expr)
-		}}}
+		}}
 	}
   }
   stage('Parralell push'){
@@ -141,7 +142,7 @@ stages {
       script {
         dir (CLONE_FOLDER) {
             parallel parallelStagesMap
-        }    
+        }
       }
     }
   }
