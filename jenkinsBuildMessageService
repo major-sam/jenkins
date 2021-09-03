@@ -1,0 +1,119 @@
+@Library("Default") _
+
+
+
+BUILDNAME = "MessageService"
+GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/personal-info-center.git"
+GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/personal-info-center.git"
+NUGET_REPO = "http://dev-comp49/"
+BRANCH_LIST_URL ="https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/personal-info-center/branches?limit=1000&type=BRANCH"
+BRANCH = "branch"
+ISSUE_KEY = 'NWP-148' 
+DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main']
+commit = env.GIT_COMMIT
+txtFile = "branch.txt"
+Release = false
+SLN_FILE = "MessageService.sln"
+SLN_FOLDER = ".\\"
+SLN_PATH = SLN_FOLDER  + SLN_FILE
+CLONE_FOLDER = "jb"
+CSPROJ_FILE = "BaltBet.MessageService.Host.csproj"
+CSPROJ_FOLDER = "MessageService\\BaltBet.MessageService.Host"
+CSPROJ_PATH = ".\\" + CSPROJ_FOLDER +"\\" + CSPROJ_FILE
+PUBLISH_DIR = "jenkinsBuild" + env.BUILD_NUMBER 
+PARAMS = "publish ${CSPROJ_FILE} --configuration Debug --runtime win81-x64 --self-contained=true --output .\\${PUBLISH_DIR}"
+
+
+
+pipeline {
+	agent { node { label 'build' }}
+stages {
+  stage ('Get Bitbucket branches') {
+    steps {
+      script {
+	  // this step must be parametrized by tagged commit in hook
+         cleanWs ()
+         def map = bbRestApiBranches(creds:'118', branchListUrl:BRANCH_LIST_URL, txtFile:txtFile)
+         BRANCH_COUNT = map.branchCount
+         DEFAULT_BRANCH = map.defaultBranch
+      }
+    }
+  }
+  stage ('Set branch to build') {
+    steps {
+     script{
+       BRANCH = chooseBranchToBuild(
+          txtFile: txtFile, 
+          branchCount: BRANCH_COUNT,
+          defaultBranches: DEFAULT_BRANCHES
+          )
+       currentBuild.description = ISSUE_KEY
+     }
+    }
+  } 
+  stage ("Checkout branch") {
+    steps {
+      checkoutBranch(
+        creds: '118',
+        branch:BRANCH, 
+        gitUrl:GIT_URL, 
+        cloneFolder:CLONE_FOLDER, 
+        defaultBranch:DEFAULT_BRANCH
+        )
+    }
+  }	
+  stage('Dynamic Stages') {
+	steps {
+           script {
+	     dir (CLONE_FOLDER) {
+	        stage ("Build artifact ${BUILDNAME}") {
+	            dir (CSPROJ_FOLDER) {
+	                expr = /dotnet.exe ${PARAMS}/ 
+	                echo expr
+	                powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
+	            }
+	        }       
+	    	stage ("Pack and push ${BUILDNAME} artifact to nuget") {
+	    	    dir (CSPROJ_FOLDER) {
+                        nugetPackAndPush(
+                            buildname: BUILDNAME,
+                            release: Release,
+                            git_url: GIT_URL,
+                            nuget_repo: NUGET_REPO,
+                            branch: BRANCH,
+                            default_branches: DEFAULT_BRANCHES,
+                            dir: PUBLISH_DIR,
+                            issue: ISSUE_KEY
+                            )
+                    }
+	    	}
+	     }
+	   }
+	}
+  }			  
+}
+post {
+  always {	
+    alwaysBuild(
+          default_branches: DEFAULT_BRANCHES,
+          job: JOB_NAME,
+          branch: BRANCH
+          )
+
+  }
+  success {
+        notifyJiraSuccses(
+          issueKey:ISSUE_KEY,
+          buildName: BUILDNAME ,
+          nugetRepo: NUGET_REPO,
+          release: Release,
+          branch: BRANCH
+          )
+  }
+  failure {
+        notifyJiraFailure(
+          issueKey:ISSUE_KEY,
+          buildName: BUILDNAME
+          )
+    }
+}}
