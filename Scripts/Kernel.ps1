@@ -71,18 +71,15 @@ function Format-Json {
 
 
 $dbname = "UniCom_Kernel"
-$KillConnectionsSql=
-"
-USE master
-GO
-ALTER DATABASE [$dbname] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
-
-GO
-EXEC msdb.dbo.sp_delete_database_backuphistory @database_name = N'$dbname'
-GO
-DROP DATABASE [$dbname]
-GO
-"
+$KillConnectionsSql="
+			USE master
+            IF EXISTS(select * from sys.databases where name='"+$dbname+"')
+            BEGIN
+				EXEC msdb.dbo.sp_delete_database_backuphistory @database_name = N'"+$dbname+"'
+			    ALTER DATABASE [$dbname] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+			    DROP DATABASE [$dbname]
+			END;
+			"
 ## Дропаем старую БД $dbname
 Invoke-Sqlcmd -Verbose -ServerInstance $env:COMPUTERNAME -Query $KillConnectionsSql -ErrorAction Continue
 # Разворачиваем базу $dbname  
