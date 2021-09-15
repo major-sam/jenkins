@@ -99,7 +99,7 @@ pipeline {
     
     parameters {
         booleanParam(name: 'Cleanup', defaultValue: false)
-        choice(name:"TESTVM", choices: ["vm-n2-ws3", "vm-n2-ws2", "vm-n2-ws1"])
+        choice(name:"TESTVM", choices: ["vm-n2-ws11", "vm-n2-ws12", "vm-n2-ws3", "vm-n2-ws2", "vm-n2-ws1"])
         string(name:'Task', defaultValue: "NWP-145", trim: true)
     }
     agent {label "${TESTVM}" }
