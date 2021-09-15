@@ -47,7 +47,10 @@ stages {
           branchCount: BRANCH_COUNT,
           defaultBranches: DEFAULT_BRANCHES
           )
-       currentBuild.description = ISSUE_KEY
+       currentBuild.description = ISSUE_KEY  
+       if (BRANCH in DEFAULT_BRANCHES){
+           Release = true
+       }
      }
     }
   } 

@@ -86,6 +86,9 @@ stages {
           defaultBranches: DEFAULT_BRANCHES
           )
         currentBuild.description = ISSUE_KEY
+        if (BRANCH in DEFAULT_BRANCHES){
+            Release = true
+        }
       }
     }
   } 
