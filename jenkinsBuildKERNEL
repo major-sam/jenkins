@@ -139,7 +139,7 @@ stages {
 		CSPROJ_FOLDER = ".\\Kernel"
 		CSPROJ_FILE = "Kernel.csproj"
 		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
-                MSBUILD_PARAMS = " /t:Release /p:Version=${env.BUILD_NUMBER} "
+                MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /p:Version=${env.BUILD_NUMBER} "
 	        expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${OUTPUT_PARAMS}/ 
                 echo expr
                 dir(CSPROJ_FOLDER){
@@ -154,7 +154,7 @@ stages {
 		CSPROJ_FOLDER = ".\\KernelWeb"
 		CSPROJ_FILE = "KernelWeb.csproj"
 		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
-                MSBUILD_PARAMS = " /t:Release /p:Version=${env.BUILD_NUMBER} "
+                MSBUILD_PARAMS = " /t:Build /p:Configuration=Release /p:Version=${env.BUILD_NUMBER} "
                 expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${OUTPUT_PARAMS}/ 
                 echo expr
                 dir(CSPROJ_FOLDER){
