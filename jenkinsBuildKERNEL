@@ -13,9 +13,9 @@ ISSUE_KEY = 'NWP-148'
 Release = false
 DEFAULT_BRANCHES = ['release', 'master', 'develop', 'main', 'developV2']
 CLONE_FOLDER = "jb"
-SLN_FILE = "Server.sln"
+BUILD_FILE = "Server.sln"
 SLN_FOLDER = ".\\"
-SLN_PATH = SLN_FOLDER  + SLN_FILE
+SLN_PATH = SLN_FOLDER  + BUILD_FILE
 DEFAULT_BRANCH = "master"
 PUBLISH_DIR =  "jenkinsBuild" + env.BUILD_NUMBER
 //MSBUILD_PARAMS = ' /t:Build /p:Configuration=Release /v:n /p:DeployOnBuild=True /p:debug="full" /p:DefineConstants="publish" /p:PublishProfile="Production" '
@@ -121,42 +121,48 @@ stages {
       }
     }
   }
-  stage ("Server.sln Restore") {	
-    steps {
-      script {
-        dir (CLONE_FOLDER) {
-         SLN_FILE = "Server.sln"
-         expr = /& ${env.VS_MSBUILD_PATH} ${SLN_FILE}  ${MSBUILD_PARAMS} ${OUTPUT_PARAMS} / 
-         echo expr
-         powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
-        }
-      }
-    }
+//  stage ("Server.sln Restore") {	
+//    steps {
+//      script {
+//        dir (CLONE_FOLDER) {
+//         BUILD_FILE = "Server.sln"
+//         expr = /& ${env.VS_MSBUILD_PATH} ${BUILD_FILE}  ${MSBUILD_PARAMS} ${OUTPUT_PARAMS} / 
+//         echo expr
+//         powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
+//        }
+//      }
+//    }
+//  }
+  stage ("Build artifact Kernel") {
+   steps {dir (CLONE_FOLDER) {
+	script {
+		CSPROJ_FOLDER = ".\\Kernel"
+		CSPROJ_FILE = "Kernel.csproj"
+		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
+                MSBUILD_PARAMS = " /t:Release /p:Version=${env.BUILD_NUMBER} "
+	        expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${OUTPUT_PARAMS}/ 
+                echo expr
+                dir(CSPROJ_FOLDER){
+		  powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
+                }
+	}
+   }}
   }
-//  stage ("Build artifact Kernel") {
-//   steps {dir (CLONE_FOLDER) {
-//	script {
-//		CSPROJ_FOLDER = ".\\Kernel"
-//		CSPROJ_FILE = "Kernel.csproj"
-//		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
-//	        expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_PATH} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${OUTPUT_PARAMS}/ 
-//                echo expr
-//		powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
-//	}
-//   }}
-//  }
-//  stage ("Build artifact KernelWeb") {
-//   steps {dir (CLONE_FOLDER) {
-//	script {
-//		CSPROJ_FOLDER = ".\\KernelWeb"
-//		CSPROJ_FILE = "KernelWeb.csproj"
-//		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
-//                expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_PATH} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${OUTPUT_PARAMS}/ 
-//                echo expr
-//		powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
-//	}
-//   }}
-//  }
+  stage ("Build artifact KernelWeb") {
+   steps {dir (CLONE_FOLDER) {
+	script {
+		CSPROJ_FOLDER = ".\\KernelWeb"
+		CSPROJ_FILE = "KernelWeb.csproj"
+		CSPROJ_PATH = CSPROJ_FOLDER +"\\" + CSPROJ_FILE 
+                MSBUILD_PARAMS = " /t:Release /p:Version=${env.BUILD_NUMBER} "
+                expr = /& ${env.VS_MSBUILD_PATH} ${CSPROJ_FILE} ${MSBUILD_PARAMS} ${PUBLISH_PARAMS} ${OUTPUT_PARAMS}/ 
+                echo expr
+                dir(CSPROJ_FOLDER){
+		  powershell ( encoding:"UTF8", returnStdout: 'true', script: expr)
+                }
+	}
+   }}
+  }
   stage('Parralell publish'){
     steps{  
       script {
