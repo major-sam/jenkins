@@ -143,7 +143,6 @@ pipeline {
 								choice(name:"Destiny", choices: opts)
 							]
 						releaseBundle = []
-						echo Destiny
 						try{
 							switch(Destiny){
 								case(stageAnswers[0]):
@@ -185,11 +184,18 @@ pipeline {
         stage ('Post Deploy'){
             steps{
                 script {
-                    println scriptMap
+					scripts = []
+					for (item in releaseBundle){
+						scr =  item.split(" ")[0].toLowerCase()
+						if(scriptMap[scr] != null){ 
+							scripts = scripts + scriptMap[scr]
+						}
+					}					
                     def nugetdir = "${env.WORKSPACE}\\${nuggetTemp}"
-                    echo nugetdir
+					scripts = scripts + scriptMap['scripts']
+					println scripts
                     withEnv(["nugettemp=${nugetdir}"]){
-                        parallel parallelStagesMapDeploy(scriptMap.scripts)
+                        parallel parallelStagesMapDeploy(scripts)
                     }
                 }
             }
