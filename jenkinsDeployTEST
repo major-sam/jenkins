@@ -100,7 +100,7 @@ pipeline {
     parameters {
         booleanParam(name: 'Cleanup', defaultValue: false)
         choice(name:"TESTVM", choices: ["vm-n2-ws11", "vm-n2-ws12", "vm-n2-ws3", "vm-n2-ws2", "vm-n2-ws1"])
-        string(name:'Task', defaultValue: "NWP-145", trim: true)
+        string(name:'Task', defaultValue: "", trim: true)
     }
     agent {label "${TESTVM}" }
     stages{
@@ -129,43 +129,50 @@ pipeline {
                 }
             }
         } 
-        stage('Choose  your destiny'){
-            steps{
-                script{
-                    Destiny = input message: 'Choose  your destiny', ok: 'GO!' ,
-                        parameters: [
-                            choice(name:"Destiny", choices: stageAnswers)
-                            //["latest ${params.Task} Task pkgs over latest release", "I wanna choose ${params.Task} task pkgs", "Release", "I am PRO. I put it by myself"])
-                        ]
-                }
-            }
-        }
         stage('Form Bundle'){
             steps{
                 script{
-                    releaseBundle = []
-                    switch(Destiny){
-                        case(stageAnswers[0]):
-                            echo Destiny
-                            releaseBundle = getTaskAndRelease(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
-                            break
-                        case(stageAnswers[1]):
-                            echo Destiny
-                            releaseBundle = chooseTask(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
-                            break
-                        case(stageAnswers[2]):
-                            echo Destiny
-                            releaseBundle = latestPackgs
-                            break
-                        case(stageAnswers[3]):
-                            echo Destiny
-                            releaseBundle = getProCut(packets:latestPackgs)
-                            break
-                        default:
-                            echo "wrong answer"
-                    }
-                    println "release bundle " + releaseBundle
+					opts = []
+					opts += stageAnswers 
+					if ("${params.Task}" !=~ '^[a-zA-Z]{3}-\\d+$'){
+						opts = opts.drop(2)
+					}
+                    while(true){
+						Destiny = input message: 'Choose  your destiny', ok: 'GO!' ,
+							parameters: [
+								choice(name:"Destiny", choices: opts)
+							]
+						releaseBundle = []
+						echo Destiny
+						try{
+							switch(Destiny){
+								case(stageAnswers[0]):
+									releaseBundle = getTaskAndRelease(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
+									break
+								case(stageAnswers[1]):
+									releaseBundle = chooseTask(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
+									break
+								case(stageAnswers[2]):
+									releaseBundle = latestPackgs
+									break
+								case(stageAnswers[3]):
+									releaseBundle = getProCut(packets:latestPackgs)
+									break
+								default:
+									echo "wrong answer"
+							}
+							println releaseBundle
+							if (releaseBundle != -1){
+								break
+							}
+						}
+						catch(errr){
+							println(errr)
+							continue
+						}
+					}
                 }
+				println "release bundle " + releaseBundle
             }
         }
         stage('Pull packages'){
