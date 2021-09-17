@@ -41,7 +41,7 @@ def generateNugetInstall(job) {
             def version  = job.split(" ")[1]
             
             def nugetOutputDir = "${env.WORKSPACE}\\${nuggetTemp}"
-            powershell (encoding: 'UTF8', script: "nuget install ${id} -Source ${env.nugetRepo} -PreRelease -version ${version} -x -OutputDirectory ${nugetOutputDir}")
+            powershell (encoding: 'UTF8', script: "nuget install ${id} -Source ${env.nugetRepo} -PreRelease -version ${version} -x -OutputDirectory ${nugetOutputDir} -DependencyVersion Ignore")
         }
         
     }
@@ -172,7 +172,7 @@ pipeline {
 						}
 					}
                 }
-				println "release bundle " + releaseBundle
+				println "Release Bundle: " + releaseBundle
             }
         }
         stage('Pull packages'){
