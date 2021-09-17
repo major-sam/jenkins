@@ -134,7 +134,7 @@ pipeline {
                 script{
 					opts = []
 					opts += stageAnswers 
-					if ("${params.Task}" !=~ '^[a-zA-Z]{3}-\\d+$'){
+					if (!("${params.Task}" =~ /^[a-zA-Z]{3}-\d+$/)){
 						opts = opts.drop(2)
 					}
                     while(true){
