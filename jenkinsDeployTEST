@@ -118,9 +118,9 @@ pipeline {
             steps{
                 echo "latestPacks какбы костыль пока не наберется полный список релизных пакетов. Но есть вероятность появления нового пакетта не сбилженого с релизной ветки"
                 script{
-                    powershell(encoding:'UTF-8', script:'nuget list -Source ${env.nugetRepo} |set-content  release_packgs')
-                    powershell(encoding:'UTF-8', script:'nuget list ${params.Task} -Source ${env.nugetRepo} -PreRelease -allversions |set-content task_packgs' ) 
-                    powershell(encoding:'UTF-8', script:'nuget list -Source ${env.nugetRepo} -PreRelease |set-content latest_packgs' ) 
+                    powershell(encoding:'UTF-8', script:"nuget list -Source ${env.nugetRepo} |set-content  release_packgs")
+                    powershell(encoding:'UTF-8', script:"nuget list ${params.Task} -Source ${env.nugetRepo} -PreRelease -allversions |set-content task_packgs" ) 
+                    powershell(encoding:'UTF-8', script:"nuget list -Source ${env.nugetRepo} -PreRelease |set-content latest_packgs" ) 
                     
                     releasePackgs =  Arrays.asList(readFile(file: 'release_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
                     taskPackgs =  Arrays.asList(readFile(file: 'task_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
