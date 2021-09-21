@@ -6,7 +6,6 @@ BUILDNAME = "Kernel"
 GIT_SSH = "ssh://git@bitbucket.baltbet.ru:7999/bbp/server.git"
 GIT_URL = "https://bitbucket.baltbet.ru:8445/scm/bbp/server.git"
 BRANCH_LIST_URL = "https://bitbucket.baltbet.ru:8445/rest/api/1.0/projects/BBP/repos/server/branches?limit=1000&type=BRANCH"
-NUGET_REPO = "http://dev-comp49/"
 BRANCH = ""
 txtFile = "branch.txt"
 ISSUE_KEY = 'NWP-148' 
@@ -49,7 +48,6 @@ def generateStageFromPsScript(job) {
            buildname: job,
            release: Release,
            git_url: GIT_URL,
-           nuget_repo: NUGET_REPO,
            branch: BRANCH,
            default_branches: DEFAULT_BRANCHES,
            dir: PUBLISH_DIR,
@@ -186,7 +184,6 @@ post {
         notifyJiraSuccses(
           issueKey:ISSUE_KEY,
           buildName: BUILDNAME ,
-          nugetRepo: NUGET_REPO,
           release: Release,
           branch: BRANCH
           )
