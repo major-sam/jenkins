@@ -18,9 +18,7 @@ def generatePostDeploy(job) {
             echo fullpath
                 powershell(encoding: 'UTF8', script:"echo ${env:nugettemp}")
                 powershell(encoding: 'UTF8', script:"${libraryResource fullpath}")
-            
         }
-        
     }
 }
 
@@ -39,14 +37,14 @@ def generateNugetInstall(job) {
             }
             def id  = job.split(" ")[0]
             def version  = job.split(" ")[1]
-            
             def nugetOutputDir = "${env.WORKSPACE}\\${nuggetTemp}"
-            powershell (encoding: 'UTF8', script: "nuget install ${id} -Source ${env.nugetRepo} -PreRelease -version ${version} -x -OutputDirectory ${nugetOutputDir} -DependencyVersion Ignore")
+            powershell (
+                encoding: 'UTF8', 
+                script: "nuget install ${id} -Source ${env.nugetRepo} -PreRelease -version ${version} -x -OutputDirectory ${nugetOutputDir} -DependencyVersion Ignore"
+                )
         }
-        
     }
 }
-
 
 
 def getProCut(Map config=[:]){
@@ -116,62 +114,61 @@ pipeline {
         }       
         stage('Get packet list from nuget'){
             steps{
-                echo "latestPacks какбы костыль пока не наберется полный список релизных пакетов. Но есть вероятность появления нового пакетта не сбилженого с релизной ветки"
-                script{
-                    powershell(encoding:'UTF-8', script:"nuget list -Source ${env.nugetRepo} |set-content  release_packgs")
-                    powershell(encoding:'UTF-8', script:"nuget list ${params.Task} -Source ${env.nugetRepo} -PreRelease -allversions |set-content task_packgs" ) 
-                    powershell(encoding:'UTF-8', script:"nuget list -Source ${env.nugetRepo} -PreRelease |set-content latest_packgs" ) 
-                    
-                    releasePackgs =  Arrays.asList(readFile(file: 'release_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
-                    taskPackgs =  Arrays.asList(readFile(file: 'task_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
-                    latestPackgs =  Arrays.asList(readFile(file: 'latest_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
-    
-                }
+               echo "latestPacks какбы костыль пока не наберется полный список релизных пакетов. Но есть вероятность появления нового пакетта не сбилженого с релизной ветки"
+               script{
+                   powershell(encoding:'UTF-8', script:"nuget list -Source ${env.nugetRepo} |set-content  release_packgs")
+                   powershell(encoding:'UTF-8', script:"nuget list ${params.Task} -Source ${env.nugetRepo} -PreRelease -allversions |set-content task_packgs" ) 
+                   powershell(encoding:'UTF-8', script:"nuget list -Source ${env.nugetRepo} -PreRelease |set-content latest_packgs" ) 
+                   
+                   releasePackgs =  Arrays.asList(readFile(file: 'release_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
+                   taskPackgs =  Arrays.asList(readFile(file: 'task_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
+                   latestPackgs =  Arrays.asList(readFile(file: 'latest_packgs', encoding: 'UTF-8').toString().split("\\r\\n"))
+               }
             }
         } 
         stage('Form Bundle'){
             steps{
                 script{
-					opts = []
-					opts += stageAnswers 
-					if (!("${params.Task}" =~ /^[a-zA-Z]{3}-\d+$/)){
-						opts = opts.drop(2)
-					}
+                    opts = []
+                    opts += stageAnswers 
+                    if (!("${params.Task}" =~ /^[a-zA-Z]{3}-\d+$/)){
+                            opts = opts.drop(2)
+                    }
                     while(true){
-						Destiny = input message: 'Choose  your destiny', ok: 'GO!' ,
-							parameters: [
-								choice(name:"Destiny", choices: opts)
-							]
-						releaseBundle = []
-						try{
-							switch(Destiny){
-								case(stageAnswers[0]):
-									releaseBundle = getTaskAndRelease(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
-									break
-								case(stageAnswers[1]):
-									releaseBundle = chooseTask(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
-									break
-								case(stageAnswers[2]):
-									releaseBundle = latestPackgs
-									break
-								case(stageAnswers[3]):
-									releaseBundle = getProCut(packets:latestPackgs)
-									break
-								default:
-									echo "wrong answer"
-							}
-							println releaseBundle
-							if (releaseBundle != -1){
-								break
-							}
-						}
-						catch(errr){
-							println(errr)
-							continue
-						}
-					}
+			Destiny = input message: 'Choose  your destiny', ok: 'GO!' ,
+				parameters: [
+					choice(name:"Destiny", choices: opts)
+				]
+			releaseBundle = []
+			try{
+				switch(Destiny){
+					case(stageAnswers[0]):
+						releaseBundle = getTaskAndRelease(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
+						break
+					case(stageAnswers[1]):
+						releaseBundle = chooseTask(taskPackgs:taskPackgs,releasePackgs:latestPackgs)
+						break
+					case(stageAnswers[2]):
+						releaseBundle = latestPackgs
+						break
+					case(stageAnswers[3]):
+						releaseBundle = getProCut(packets:latestPackgs)
+						break
+					default:
+						echo "wrong answer"
+				}
+				println releaseBundle
+				if (releaseBundle != -1){
+					break
+				}
+			}
+			catch(errr){
+				println(errr)
+				continue
+			}
+		   }
                 }
-				println "Release Bundle: " + releaseBundle
+		println "Release Bundle: " + releaseBundle
             }
         }
         stage('Pull packages'){
@@ -184,16 +181,16 @@ pipeline {
         stage ('Post Deploy'){
             steps{
                 script {
-					scripts = []
-					for (item in releaseBundle){
-						scr =  item.split(" ")[0].toLowerCase()
-						if(scriptMap[scr] != null){ 
-							scripts = scripts + scriptMap[scr]
-						}
-					}					
+                    scripts = []
+                    for (item in releaseBundle){
+                      scr =  item.split(" ")[0].toLowerCase()
+                      if(scriptMap[scr] != null){ 
+                              scripts = scripts + scriptMap[scr]
+                      }
+                    }					
                     def nugetdir = "${env.WORKSPACE}\\${nuggetTemp}"
-					scripts = scripts + scriptMap['scripts']
-					println scripts
+                    scripts = scripts + scriptMap['scripts']
+                    println scripts
                     withEnv(["nugettemp=${nugetdir}"]){
                         parallel parallelStagesMapDeploy(scripts)
                     }
